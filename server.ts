@@ -11,7 +11,14 @@ async function main() {
   const port = Number(process.env.PORT ?? settings.port);
   const hostname = "0.0.0.0";
 
-  const app = next({ dev, hostname, port });
+  // Force webpack — custom-server + Turbopack hangs hydration in Next 16.
+  // (Per next/dist/server/next.js: must pass webpack:true; turbopack:false alone leaves it on "auto".)
+  const app = next({
+    dev,
+    hostname,
+    port,
+    webpack: true,
+  } as Parameters<typeof next>[0]);
   const handle = app.getRequestHandler();
   await app.prepare();
 
@@ -24,11 +31,25 @@ async function main() {
   });
 
   const yjsWss = new WebSocketServer({ noServer: true });
+  const nextUpgradeHandler = app.getUpgradeHandler();
 
   httpServer.on("upgrade", async (req, socket, head) => {
+    socket.on("error", () => {
+      /* swallow noisy resets from HMR / probe clients */
+    });
     const url = req.url ?? "";
+    // Non-Yjs upgrades (e.g. Next.js HMR `/_next/webpack-hmr`) must reach Next,
+    // otherwise the dev client refuses to hydrate the page.
     if (!url.startsWith("/_yjs/")) {
-      socket.destroy();
+      try {
+        await nextUpgradeHandler(req, socket as never, head);
+      } catch (err) {
+        if (
+          (err as NodeJS.ErrnoException)?.code !== "ECONNRESET"
+        ) {
+          console.error("next upgrade error", err);
+        }
+      }
       return;
     }
     try {

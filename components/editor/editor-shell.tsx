@@ -22,17 +22,7 @@ const YjsCodeMirror = dynamic(
   { ssr: false, loading: () => <div className="h-full bg-zinc-950" /> },
 );
 
-const PdfViewer = dynamic(
-  () => import("@/components/pdf-viewer/pdf-viewer").then((m) => m.PdfViewer),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Loading viewer…
-      </div>
-    ),
-  },
-);
+import { PdfViewer } from "@/components/pdf-viewer/pdf-viewer";
 
 type ProjectMeta = {
   id: string;

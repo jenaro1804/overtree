@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun --watch server.ts",
+    "dev": "tsx watch server.ts",
     "build": "next build",
-    "start": "NODE_ENV=production bun server.ts",
-    "doctor": "bun scripts/doctor.ts",
-    "mcp": "bun mcp-server/stdio.ts",
-    "mcp-config": "bun scripts/print-mcp-config.ts"
+    "start": "NODE_ENV=production tsx server.ts",
+    "doctor": "tsx scripts/doctor.ts",
+    "mcp": "tsx mcp-server/stdio.ts",
+    "mcp-config": "tsx scripts/print-mcp-config.ts"
   },
   "bin": {
     "overtree-mcp": "mcp-server/stdio.ts"
@@ -31,11 +31,9 @@
     "codemirror": "^6.0.2",
     "iron-session": "^8.0.4",
     "next": "16.2.4",
-    "pdfjs-dist": "^5.7.284",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-pdf": "^10.4.1",
     "react-resizable-panels": "^4.11.0",
     "tailwind-merge": "^3.5.0",
     "ws": "^8.20.0",
@@ -53,6 +51,7 @@
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   },
   "ignoreScripts": [
