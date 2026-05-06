@@ -1,7 +1,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const TEMPLATES_DIR = path.join(process.cwd(), "templates");
+// Resolve relative to this file so it works regardless of process.cwd()
+// (e.g. when launched as a stdio MCP server from another project's directory).
+const TEMPLATES_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../templates",
+);
 
 export async function listTemplates(): Promise<string[]> {
   try {
