@@ -10,7 +10,7 @@ import {
 } from "react-resizable-panels";
 import type { CodeMirrorHandle, Peer } from "./yjs-code-mirror";
 import { FileTree, type FileNode } from "@/components/file-tree/file-tree";
-import { LoaderIcon, PlayIcon } from "@/components/icons";
+import { CheckIcon, LoaderIcon, PlayIcon, SaveIcon } from "@/components/icons";
 import {
   CompileLog,
   type LogEntry,
@@ -32,6 +32,8 @@ type ProjectMeta = {
 
 type CompileStatus = "idle" | "running" | "ok" | "failed";
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 type UserInfo = { name: string; color: string };
 
 export function EditorShell({
@@ -50,9 +52,11 @@ export function EditorShell({
   const [peers, setPeers] = useState<Peer[]>([]);
   const [connected, setConnected] = useState(false);
   const [user, setUser] = useState<UserInfo>(initialUser);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const editorRef = useRef<CodeMirrorHandle | null>(null);
   const compileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sseRef = useRef<EventSource | null>(null);
 
   const reloadTree = useCallback(async () => {
@@ -109,11 +113,32 @@ export function EditorShell({
     subscribeCompile();
   }, [project.id, subscribeCompile]);
 
+  const saveNow = useCallback(async () => {
+    if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current);
+    setSaveStatus("saving");
+    try {
+      const r = await fetch(`/api/save/${project.id}`, { method: "POST" });
+      if (!r.ok) throw new Error(`save ${r.status}`);
+      setSaveStatus("saved");
+      savedFlashTimer.current = setTimeout(() => setSaveStatus("idle"), 1500);
+    } catch {
+      setSaveStatus("error");
+      savedFlashTimer.current = setTimeout(() => setSaveStatus("idle"), 2500);
+    }
+  }, [project.id]);
+
   function handleSaveNow() {
-    // Yjs flushes on its own; this is a manual nudge to compile
+    // Cmd-S: flush yjs to disk and queue a compile.
+    saveNow();
     if (compileTimer.current) clearTimeout(compileTimer.current);
     compileTimer.current = setTimeout(() => compile(), 200);
   }
+
+  useEffect(() => {
+    return () => {
+      if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current);
+    };
+  }, []);
 
   async function createFile(parent: string) {
     const name = prompt(
@@ -185,6 +210,27 @@ export function EditorShell({
             {user.name}
           </button>
           <PresenceBar me={user} peers={peers} connected={connected} />
+          <button
+            onClick={saveNow}
+            disabled={saveStatus === "saving"}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 disabled:opacity-50 text-zinc-200 text-sm font-medium transition"
+            title="Save (Cmd+S)"
+          >
+            {saveStatus === "saving" ? (
+              <LoaderIcon width={12} height={12} />
+            ) : saveStatus === "saved" ? (
+              <CheckIcon width={12} height={12} />
+            ) : (
+              <SaveIcon width={12} height={12} />
+            )}
+            {saveStatus === "saving"
+              ? "Guardando…"
+              : saveStatus === "saved"
+                ? "Guardado"
+                : saveStatus === "error"
+                  ? "Error"
+                  : "Guardar"}
+          </button>
           <button
             onClick={compile}
             disabled={compileStatus === "running"}
