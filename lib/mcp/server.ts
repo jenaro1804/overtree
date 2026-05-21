@@ -18,7 +18,7 @@ import {
 import { listTemplates } from "@/lib/core/templates";
 import { compileAndWait, getSession } from "@/lib/core/compile";
 import { applyExternalUpdate } from "@/lib/yjs/doc-manager";
-import { resolveInProject } from "@/lib/core/storage";
+import { projectOutputDir, resolveInProject } from "@/lib/core/storage";
 import { promises as fs } from "node:fs";
 
 function textResult(text: string) {
@@ -252,9 +252,14 @@ export async function createMcpServer(): Promise<McpServer> {
     },
     async ({ project_id }) => {
       try {
+        // The PDF lives in the per-machine cache (out of OneDrive), not in the
+        // project dir — so read it directly instead of via resolveInProject,
+        // which rejects paths outside the project.
         const meta = await readMeta(project_id);
-        const pdfRel = `output/${meta.mainFile.replace(/\.tex$/, ".pdf")}`;
-        const buf = await readFileBinary(project_id, pdfRel);
+        const pdfFile = meta.mainFile.replace(/\.tex$/i, ".pdf");
+        const buf = await fs.readFile(
+          path.join(projectOutputDir(project_id), pdfFile),
+        );
         return {
           content: [
             {
@@ -264,7 +269,7 @@ export async function createMcpServer(): Promise<McpServer> {
             {
               type: "resource" as const,
               resource: {
-                uri: `overtree://projects/${project_id}/${pdfRel}`,
+                uri: `overtree://projects/${project_id}/output/${pdfFile}`,
                 mimeType: "application/pdf",
                 blob: buf.toString("base64"),
               },

@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
 import { readFile, writeFile } from "@/lib/core/files";
-import { projectMetaDir, resolveInProject } from "@/lib/core/storage";
+import { projectCacheDir, resolveInProject } from "@/lib/core/storage";
 import { createHash } from "node:crypto";
 import type { WebSocket } from "ws";
 
@@ -13,21 +13,24 @@ const STATE_FLUSH_DEBOUNCE_MS = 300;
 const IDLE_DISPOSE_MS = 5 * 60 * 1000;
 
 /**
- * Persisted binary Y.Doc state file path. Storing this alongside the project
- * lets `getRoom()` rehydrate the FULL CRDT history across server restarts so
- * reconnecting clients merge cleanly instead of producing duplicate content.
+ * Persisted binary Y.Doc state file path. Lives in the per-machine cache (NOT
+ * the project dir) so the ~300ms write churn never reaches OneDrive. It lets
+ * `getRoom()` rehydrate the FULL CRDT history across server restarts so
+ * reconnecting clients merge cleanly instead of producing duplicate content;
+ * when the cache is empty (other machine / cleared) getRoom reseeds from the
+ * on-disk text — only cross-session undo history is lost, not content.
  */
 async function yjsStateFile(
   projectId: string,
   filePath: string,
 ): Promise<string> {
-  const meta = await projectMetaDir(projectId);
+  const cacheDir = projectCacheDir(projectId);
   const safe = Buffer.from(filePath, "utf8")
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
-  return path.join(meta, "yjs", `${safe}.bin`);
+  return path.join(cacheDir, "yjs", `${safe}.bin`);
 }
 
 export type Room = {

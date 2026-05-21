@@ -2,8 +2,9 @@ import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { promises as fs } from "node:fs";
-import { projectDir } from "./storage";
+import { projectDir, projectOutputDir } from "./storage";
 import { readMeta, touchProject } from "./projects";
+import { loadSettings } from "./settings";
 
 export type CompileEvent =
   | { type: "log"; line: string; stream: "stdout" | "stderr" }
@@ -39,8 +40,10 @@ export async function compile(id: string): Promise<CompileSession> {
     /* doc-manager not loaded — nothing to flush */
   }
   const meta = await readMeta(id);
+  // cwd stays the project dir so Tectonic finds the source (.tex, images,
+  // .bib). Only the OUTPUT goes to the per-machine cache (kept out of OneDrive).
   const cwd = await projectDir(id);
-  const outDir = path.join(cwd, "output");
+  const outDir = projectOutputDir(id);
   await fs.mkdir(outDir, { recursive: true });
 
   const existing = sessions.get(id);
@@ -64,11 +67,16 @@ export async function compile(id: string): Promise<CompileSession> {
   sessions.set(id, session);
 
   const main = meta.mainFile;
-  const args = ["-X", "compile", main, "--outdir", "output", "--keep-logs"];
+  // Absolute --outdir: output now lives outside cwd (in the cache), so the old
+  // relative "output" no longer points at the right place.
+  const args = ["-X", "compile", main, "--outdir", outDir, "--keep-logs"];
 
-  const child = spawn("tectonic", args, {
+  const settings = await loadSettings();
+  const tectonicCmd = settings.tectonicPath ?? "tectonic";
+  const child = spawn(tectonicCmd, args, {
     cwd,
     env: { ...process.env, TECTONIC_NO_COLOR: "1" },
+    shell: false,
   });
 
   const handleData =

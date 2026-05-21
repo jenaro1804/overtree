@@ -1,6 +1,25 @@
 import path from "node:path";
+import os from "node:os";
 import { promises as fs } from "node:fs";
 import { loadSettings } from "./settings";
+
+// Regenerable per-machine cache (Yjs state, compile output). Kept OUT of the
+// project dir so it never syncs to OneDrive — the .bin churns every ~300ms and
+// the PDF is rewritten on every compile, yet both rebuild from the source.
+const CACHE_ROOT = process.env.LOCALAPPDATA
+  ? path.join(process.env.LOCALAPPDATA, "Overtree", "cache")
+  : path.join(os.homedir(), "AppData", "Local", "Overtree", "cache");
+
+/** Absolute cache dir for a project (NOT synced). Caller mkdirs subpaths. */
+export function projectCacheDir(id: string): string {
+  if (!isSafeId(id)) throw new Error(`invalid project id: ${id}`);
+  return path.join(CACHE_ROOT, id);
+}
+
+/** Compile output dir (PDF + logs) in the per-machine cache, NOT synced. */
+export function projectOutputDir(id: string): string {
+  return path.join(projectCacheDir(id), "output");
+}
 
 export async function projectsRoot(): Promise<string> {
   const s = await loadSettings();

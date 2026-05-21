@@ -128,7 +128,7 @@ export function EditorShell({
   }, [project.id]);
 
   function handleSaveNow() {
-    // Cmd-S: flush yjs to disk and queue a compile.
+    // Ctrl-S: flush yjs to disk and queue a compile.
     saveNow();
     if (compileTimer.current) clearTimeout(compileTimer.current);
     compileTimer.current = setTimeout(() => compile(), 200);
@@ -184,7 +184,7 @@ export function EditorShell({
   }
 
   const pdfSrc = pdfAvailable
-    ? `/api/files/${project.id}/output/${project.mainFile.replace(/\.tex$/, ".pdf")}?v=${pdfBust}`
+    ? `/api/pdf/${project.id}?v=${pdfBust}`
     : null;
 
   return (
@@ -214,7 +214,7 @@ export function EditorShell({
             onClick={saveNow}
             disabled={saveStatus === "saving"}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 disabled:opacity-50 text-zinc-200 text-sm font-medium transition"
-            title="Save (Cmd+S)"
+            title="Save (Ctrl+S)"
           >
             {saveStatus === "saving" ? (
               <LoaderIcon width={12} height={12} />
@@ -235,7 +235,7 @@ export function EditorShell({
             onClick={compile}
             disabled={compileStatus === "running"}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--accent)] hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition"
-            title="Compile (Cmd+Enter)"
+            title="Compile (Ctrl+Enter)"
           >
             {compileStatus === "running" ? (
               <LoaderIcon width={12} height={12} />
