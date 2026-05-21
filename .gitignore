@@ -43,3 +43,10 @@ next-env.d.ts
 # overtree runtime
 /server.log
 /.overtree-tmp/
+/.overtree-launcher.log
+/.overtree-launcher.pid
+
+# local-only: Claude Code runtime state + personal working notes (keep out of the repo)
+/.claude/
+/CLAUDE.md
+/OneDrive.md

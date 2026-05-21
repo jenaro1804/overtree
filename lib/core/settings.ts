@@ -6,6 +6,7 @@ export type Settings = {
   rootDir: string;
   port: number;
   defaultEngine: "tectonic";
+  // Absolute path to tectonic.exe; used when tectonic is not on PATH.
   tectonicPath?: string;
   sessionSecret: string;
 };
