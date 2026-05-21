@@ -1,37 +1,106 @@
-\documentclass[11pt,a4paper]{article}
+%% This is file AJCEAM-paper.tex is the template file for publications
+%% in the "
+%% from Universidade Federal do Tocatins, Brazil,
+%% https://sistemas.uft.edu.br/periodicos/index.php/AJCEAM/index
+%% This file was originally written by Tiago Almeida.
+%% First revision: 2019-10-29
+%% Second revision:
+%%
+%% History:
+%%           2019-10-29 - First version by Tiago Almeida <tiagoalmeida@uft.edu.br>.
+%%           2020-04-09 - English revision by Caio Machado <caio.machado@uft.edu.br>
+%%
 
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{lmodern}
-\usepackage{microtype}
-\usepackage{geometry}
-\usepackage{graphicx}
-\usepackage{amsmath, amssymb, amsthm}
-\usepackage{hyperref}
+% Options
+%     eng:   English Language
+%     por:   Portuguese Language
+%     blind: The version for reviewers is compiled (author data is hidden)
 
-\geometry{margin=1in}
 
-\title{Untitled Article}
-\author{Your Name}
-\date{\today}
+
+
+
+\documentclass[eng]{ajceam-class}
+%
+% Publication Title
+\title{Reporte Técnico: Entrega Final}
+
+\usepackage{tabularx}
+
+% Publication Title (Portuguese only)
+\titulo{}
+
+% Short title for the header (copy the main title if it is not too long)
+\shorttitle{Entrega 1}
+       
+% Authors
+\author[1]{Jenaro Alcaraz Sargosa (A0164685)}
+\author[2]{Valeria González Nava (A00842141)}
+\author[3]{Roberto Pérez Castillo (A01286834)}
+\author[4]{Andrea Mestizo Hernández (A01735773)}
+% Author Affiliations
+\affil[1]{Instituto Tecnológico de Estudios Superiores de Monterrey (ITESM), Departamento de Ingeniería y Ciencias, Nuevo Leon, México}
+
+
+% Surname of the first author of the manuscript
+\firstauthor{SurnameA, SurnameB and SurnameC}
+
+%Contact Author Information
+\contactauthor{Name A. Surname}           % Name and surname of the contact author
+\email{name.surname@email.com}            % Contact Author Email
+
+% Publication data (will be defined in the edition)
+\thisvolume{01}
+\thisnumber{02}
+\thismonth{Abril}
+\thisyear{2026}
+\publicationdate{4/5/2026}
+
+% Place your particular definitions here
+\newcommand{\vect}[1]{\mathbf{#1}}  % vectors
+
+% Insert here the abstract in English language
+\abstract{
+}
+
+% Insert here the keywords of your work in English language
+\keywords{
+}
 
 \begin{document}
+
+
 \maketitle
+\thispagestyle{fancy}
 
-\begin{abstract}
-This is the abstract. Replace with your own summary.
-\end{abstract}
 
-\section{Introduction}
-Welcome to your new project on Overtree.
+\section{Introducción}
 
-\section{Some Math}
-Recall Euler's identity:
-\[
-e^{i\pi} + 1 = 0.
-\]
+% Descomenta y pon el nombre real del archivo de imagen para usar la figura:
+% \begin{figure}[H]
+%  \centering
+%  \includegraphics[width=1.05\columnwidth]{tu-imagen.png}
+%  \caption{} \label{fig-1}
+% \end{figure}
 
-\section{Conclusion}
-Edit \texttt{main.tex} and hit \emph{Compile} to see the PDF update live.
+\newpage
+
+% quitar comentario para incluir todas las q no estan citadas
+% \nocite{*} 
+\clearpage
+\insertbibliography{referencias}
+
+\newpage
+\clearpage
+%INSERTAR APENDICE SI ES NECESARIO
+% \appendix
+
+% \section*{Anexo A. Código del modelo de optimización}
+
+% A continuación, se anexa la carpeta que contiene el notebook con el código de python del modelo, así como los 3 archivos CSV que se utilizaron, uno con la tabla de distancias, otro con la tabla de tiempos y el último con la tabla de prioridades e información de la población:
+
+% \begin{center}
+% \href{https://drive.google.com/drive/folders/1dqEAerj77I-ecWOhsk9C9sQ2S1CBN8Qf?usp=sharing}{\underline{Haga click para redirigirse a la carpeta de Google Drive}}
+% \end{center}
 
 \end{document}
