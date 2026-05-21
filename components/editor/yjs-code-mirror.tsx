@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { yCollab } from "y-codemirror.next";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { StreamLanguage } from "@codemirror/language";
@@ -104,26 +104,29 @@ export function YjsCodeMirror({
             oneDark,
             ...(isTex ? [StreamLanguage.define(stex)] : []),
             yCollab(ytext, provider.awareness, { undoManager: undoMgr }),
-            keymap.of([
-              indentWithTab,
-              ...defaultKeymap,
-              {
-                key: "Mod-s",
-                preventDefault: true,
-                run: () => {
-                  onSaveRef.current?.();
-                  return true;
+            // Prec.highest so these win over basicSetup's keymaps, which
+            // otherwise capture the keys before our bindings run.
+            Prec.highest(
+              keymap.of([
+                {
+                  key: "Mod-s",
+                  preventDefault: true,
+                  run: () => {
+                    onSaveRef.current?.();
+                    return true;
+                  },
                 },
-              },
-              {
-                key: "Mod-Enter",
-                preventDefault: true,
-                run: () => {
-                  onCompileRef.current?.();
-                  return true;
+                {
+                  key: "Mod-Enter",
+                  preventDefault: true,
+                  run: () => {
+                    onCompileRef.current?.();
+                    return true;
+                  },
                 },
-              },
-            ]),
+              ]),
+            ),
+            keymap.of([indentWithTab, ...defaultKeymap]),
             EditorView.theme({
               "&": { height: "100%" },
               ".cm-scroller": { overflow: "auto" },

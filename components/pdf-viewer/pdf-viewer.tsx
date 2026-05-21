@@ -8,7 +8,7 @@ export function PdfViewer({ src }: Props) {
   if (!src) {
     return (
       <div className="h-full flex items-center justify-center text-zinc-500 text-sm bg-zinc-900">
-        Compile (Cmd+Enter) to see PDF.
+        Compile (Ctrl+Enter) to see PDF.
       </div>
     );
   }

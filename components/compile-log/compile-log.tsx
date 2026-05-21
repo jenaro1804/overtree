@@ -37,7 +37,7 @@ export function CompileLog({ entries, status, onJumpToLine }: Props) {
       >
         {entries.length === 0 && (
           <p className="text-zinc-600">
-            Compile output will appear here. Press Compile or Cmd+Enter.
+            Compile output will appear here. Press Compile or Ctrl+Enter.
           </p>
         )}
         {entries.map((e, i) => {
