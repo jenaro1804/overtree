@@ -10,6 +10,9 @@ type System = {
   lanUrl: string;
   tectonicAvailable: boolean;
   mcpStdioBin: string;
+  mcpCommand: string;
+  mcpCwd: string;
+  mcpTsconfig: string;
   mcpHttpUrl: string;
 };
 
@@ -30,15 +33,17 @@ export function SettingsView() {
     {
       mcpServers: {
         overtree: {
-          command: "bun",
-          args: [sys.mcpStdioBin],
+          command: sys.mcpCommand,
+          args: ["-y", "tsx", sys.mcpStdioBin],
+          cwd: sys.mcpCwd,
+          env: { TSX_TSCONFIG_PATH: sys.mcpTsconfig },
         },
       },
     },
     null,
     2,
   );
-  const claudeCodeCmd = `claude mcp add overtree -- bun ${sys.mcpStdioBin}`;
+  const claudeCodeCmd = `claude mcp add overtree -- npx -y tsx "${sys.mcpStdioBin}"`;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 space-y-10">
@@ -80,8 +85,22 @@ export function SettingsView() {
               <span className="text-emerald-400">installed</span>
             ) : (
               <span className="text-amber-400">
-                not found — run{" "}
-                <code className="bg-zinc-900 px-1 rounded">brew install tectonic</code>
+                not found — download the{" "}
+                <code className="bg-zinc-900 px-1 rounded">
+                  x86_64-pc-windows-msvc
+                </code>{" "}
+                zip from{" "}
+                <a
+                  href="https://github.com/tectonic-typesetting/tectonic/releases/latest"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-amber-300"
+                >
+                  tectonic releases
+                </a>
+                , extract <code className="bg-zinc-900 px-1 rounded">tectonic.exe</code>{" "}
+                to a folder on your PATH (or set{" "}
+                <code className="bg-zinc-900 px-1 rounded">settings.tectonicPath</code>)
               </span>
             )
           }
@@ -90,11 +109,14 @@ export function SettingsView() {
 
       <Section title="Claude Desktop (stdio)">
         <p className="text-sm text-zinc-400 mb-3">
-          Add the snippet below to{" "}
-          <code className="bg-zinc-900 px-1 rounded">
-            ~/Library/Application Support/Claude/claude_desktop_config.json
-          </code>{" "}
-          and restart Claude Desktop.
+          In Claude Desktop open{" "}
+          <strong className="text-zinc-200">
+            Settings → Developer → Edit config
+          </strong>{" "}
+          (it opens the right file for your build), paste the snippet below into{" "}
+          <code className="bg-zinc-900 px-1 rounded">mcpServers</code>, then{" "}
+          <strong className="text-zinc-200">quit Claude Desktop from the tray</strong>{" "}
+          and reopen it. The paths below are already filled in for this machine.
         </p>
         <CodeBlock value={claudeConfig} />
       </Section>

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { loadSettings } from "../lib/core/settings";
 import { getAllLanIps } from "../lib/lan";
 
@@ -8,19 +9,31 @@ async function main() {
   const ips = getAllLanIps();
   const lanUrl = ips[0] ? `http://${ips[0]}:${settings.port}` : `http://localhost:${settings.port}`;
   const stdioBin = path.resolve(process.cwd(), "mcp-server/stdio.ts");
+  // Absolute npx.cmd (next to the node.exe running this) so the snippet works
+  // on both classic and MSIX Claude Desktop. Everything derived — no hardcoding.
+  const npxCmd = path.join(path.dirname(process.execPath), "npx.cmd");
+  const command = existsSync(npxCmd) ? npxCmd : "npx.cmd";
 
   console.log("\n  Overtree MCP — connect your AI clients\n");
 
-  console.log("• Claude Desktop");
-  console.log(`  Edit ~/Library/Application\\ Support/Claude/claude_desktop_config.json:`);
+  console.log("- Claude Desktop");
+  console.log(
+    `  In Claude Desktop: Settings → Developer → Edit config (opens the right`,
+  );
+  console.log(
+    `  file for your build — classic %APPDATA%\\Claude\\ or MSIX LocalCache).`,
+  );
+  console.log(`  Paste this into "mcpServers":`);
   console.log("");
   console.log(
     JSON.stringify(
       {
         mcpServers: {
           overtree: {
-            command: "bun",
-            args: [stdioBin],
+            command,
+            args: ["-y", "tsx", stdioBin],
+            cwd: process.cwd(),
+            env: { TSX_TSCONFIG_PATH: path.resolve(process.cwd(), "tsconfig.json") },
           },
         },
       },
@@ -29,12 +42,12 @@ async function main() {
     ),
   );
   console.log("");
-  console.log("  Then restart Claude Desktop.");
+  console.log("  Then quit Claude Desktop from the tray and reopen it.");
   console.log("");
 
-  console.log("• Claude Code CLI");
+  console.log("- Claude Code CLI");
   console.log("  Run once:");
-  console.log(`    claude mcp add overtree -- bun ${stdioBin}`);
+  console.log(`    claude mcp add overtree -- npx -y tsx "${stdioBin}"`);
   console.log("");
 
   console.log("• ChatGPT Desktop (HTTP/SSE)");
