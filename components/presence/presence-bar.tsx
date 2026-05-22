@@ -17,7 +17,7 @@ export function PresenceBar({ me, peers, connected }: Props) {
   return (
     <div className="flex items-center gap-1.5">
       <span
-        className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-zinc-600"}`}
+        className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-subtle"}`}
         title={connected ? "Live" : "Disconnected"}
       />
       <Avatar name={me.name} color={me.color} self />
@@ -41,7 +41,7 @@ function Avatar({
     <div
       title={`${name}${self ? " (you)" : ""}`}
       style={{ background: color }}
-      className="w-6 h-6 rounded-full text-[10px] font-semibold flex items-center justify-center text-white border border-zinc-900 ring-2 ring-zinc-900/0 hover:ring-zinc-700 transition"
+      className="w-6 h-6 rounded-full text-[10px] font-semibold flex items-center justify-center text-white border border-border ring-2 ring-transparent hover:ring-border-strong transition"
     >
       {initials(name)}
     </div>

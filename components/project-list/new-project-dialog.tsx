@@ -64,35 +64,35 @@ export function NewProjectDialog({ open, onClose, onCreated }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <form
         onSubmit={submit}
-        className="bg-[var(--panel)] border border-zinc-800 rounded-xl w-full max-w-md p-6 shadow-2xl"
+        className="bg-panel border border-border rounded-xl w-full max-w-md p-6 shadow-2xl"
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-medium">New project</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-200"
+            className="text-muted hover:text-foreground"
           >
             <XIcon />
           </button>
         </div>
 
-        <label className="block text-sm mb-1 text-zinc-400">Name</label>
+        <label className="block text-sm mb-1 text-muted">Name</label>
         <input
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="My paper"
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)]"
+          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent"
         />
 
-        <label className="block text-sm mt-4 mb-1 text-zinc-400">
+        <label className="block text-sm mt-4 mb-1 text-muted">
           Template
         </label>
         <select
           value={template}
           onChange={(e) => setTemplate(e.target.value)}
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2 text-sm"
+          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm"
         >
           {templates.map((t) => (
             <option key={t} value={t}>
@@ -101,7 +101,7 @@ export function NewProjectDialog({ open, onClose, onCreated }: Props) {
           ))}
         </select>
 
-        <label className="flex items-center gap-2 mt-4 text-sm text-zinc-300 cursor-pointer">
+        <label className="flex items-center gap-2 mt-4 text-sm text-foreground cursor-pointer">
           <input
             type="checkbox"
             checked={isPrivate}
@@ -116,7 +116,7 @@ export function NewProjectDialog({ open, onClose, onCreated }: Props) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Project password"
-            className="w-full mt-2 bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)]"
+            className="w-full mt-2 bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent"
           />
         )}
 
@@ -126,14 +126,14 @@ export function NewProjectDialog({ open, onClose, onCreated }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm text-zinc-400 hover:text-zinc-200"
+            className="px-4 py-2 rounded-md text-sm text-muted hover:text-foreground"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!name.trim() || submitting}
-            className="px-4 py-2 rounded-md bg-[var(--accent)] hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition"
+            className="px-4 py-2 rounded-md bg-accent hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition"
           >
             {submitting ? "Creating…" : "Create"}
           </button>

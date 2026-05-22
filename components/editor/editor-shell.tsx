@@ -16,10 +16,12 @@ import {
   type LogEntry,
 } from "@/components/compile-log/compile-log";
 import { PresenceBar } from "@/components/presence/presence-bar";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/lib/theme";
 
 const YjsCodeMirror = dynamic(
   () => import("./yjs-code-mirror").then((m) => m.YjsCodeMirror),
-  { ssr: false, loading: () => <div className="h-full bg-zinc-950" /> },
+  { ssr: false, loading: () => <div className="h-full bg-background" /> },
 );
 
 import { PdfViewer } from "@/components/pdf-viewer/pdf-viewer";
@@ -53,6 +55,7 @@ export function EditorShell({
   const [connected, setConnected] = useState(false);
   const [user, setUser] = useState<UserInfo>(initialUser);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const { theme } = useTheme();
 
   const editorRef = useRef<CodeMirrorHandle | null>(null);
   const compileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -189,31 +192,32 @@ export function EditorShell({
 
   return (
     <div className="h-screen flex flex-col">
-      <header className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-[var(--panel)]">
+      <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-panel">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/projects"
-            className="text-zinc-400 hover:text-zinc-100 text-sm shrink-0"
+            className="text-muted hover:text-foreground text-sm shrink-0"
           >
             ← Projects
           </Link>
-          <span className="text-zinc-700 shrink-0">/</span>
+          <span className="text-subtle shrink-0">/</span>
           <span className="font-medium truncate">{project.name}</span>
-          <span className="text-xs text-zinc-500 truncate">{activePath}</span>
+          <span className="text-xs text-muted truncate">{activePath}</span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={changeName}
-            className="text-xs text-zinc-500 hover:text-zinc-200"
+            className="text-xs text-muted hover:text-foreground"
             title="Change name"
           >
             {user.name}
           </button>
           <PresenceBar me={user} peers={peers} connected={connected} />
+          <ThemeToggle />
           <button
             onClick={saveNow}
             disabled={saveStatus === "saving"}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 disabled:opacity-50 text-zinc-200 text-sm font-medium transition"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border-strong hover:border-border-strong hover:bg-surface disabled:opacity-50 text-foreground text-sm font-medium transition"
             title="Save (Ctrl+S)"
           >
             {saveStatus === "saving" ? (
@@ -234,7 +238,7 @@ export function EditorShell({
           <button
             onClick={compile}
             disabled={compileStatus === "running"}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--accent)] hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition"
             title="Compile (Ctrl+Enter)"
           >
             {compileStatus === "running" ? (
@@ -258,16 +262,17 @@ export function EditorShell({
               onDelete={deletePath}
             />
           </Panel>
-          <PanelResizeHandle className="w-px bg-zinc-800 hover:bg-zinc-700 transition" />
+          <PanelResizeHandle className="w-px bg-border hover:bg-border-strong transition" />
           <Panel defaultSize={45} minSize={20}>
             <PanelGroup orientation="vertical" className="h-full">
               <Panel defaultSize={70} minSize={20}>
-                <div className="h-full bg-zinc-950">
+                <div className="h-full bg-background">
                   <YjsCodeMirror
                     projectId={project.id}
                     path={activePath}
                     userName={user.name}
                     userColor={user.color}
+                    theme={theme}
                     onSave={handleSaveNow}
                     onCompile={compile}
                     onPeers={setPeers}
@@ -278,7 +283,7 @@ export function EditorShell({
                   />
                 </div>
               </Panel>
-              <PanelResizeHandle className="h-px bg-zinc-800 hover:bg-zinc-700 transition" />
+              <PanelResizeHandle className="h-px bg-border hover:bg-border-strong transition" />
               <Panel defaultSize={30} minSize={10}>
                 <CompileLog
                   entries={logEntries}
@@ -288,7 +293,7 @@ export function EditorShell({
               </Panel>
             </PanelGroup>
           </Panel>
-          <PanelResizeHandle className="w-px bg-zinc-800 hover:bg-zinc-700 transition" />
+          <PanelResizeHandle className="w-px bg-border hover:bg-border-strong transition" />
           <Panel defaultSize={37} minSize={20}>
             <PdfViewer src={pdfSrc} />
           </Panel>

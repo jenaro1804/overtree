@@ -26,7 +26,7 @@ export function SettingsView() {
   }, []);
 
   if (!sys) {
-    return <div className="p-12 text-zinc-500">Loading…</div>;
+    return <div className="p-12 text-muted">Loading…</div>;
   }
 
   const claudeConfig = JSON.stringify(
@@ -51,7 +51,7 @@ export function SettingsView() {
         <div>
           <Link
             href="/projects"
-            className="text-zinc-400 hover:text-zinc-100 text-sm"
+            className="text-muted hover:text-foreground text-sm"
           >
             ← Projects
           </Link>
@@ -67,7 +67,7 @@ export function SettingsView() {
           value={
             <div className="space-y-0.5">
               {sys.ips.length === 0 ? (
-                <span className="text-zinc-500">No external interfaces</span>
+                <span className="text-muted">No external interfaces</span>
               ) : (
                 sys.ips.map((ip) => (
                   <code key={ip} className="text-emerald-400 block">
@@ -86,7 +86,7 @@ export function SettingsView() {
             ) : (
               <span className="text-amber-400">
                 not found — download the{" "}
-                <code className="bg-zinc-900 px-1 rounded">
+                <code className="bg-surface px-1 rounded">
                   x86_64-pc-windows-msvc
                 </code>{" "}
                 zip from{" "}
@@ -98,9 +98,9 @@ export function SettingsView() {
                 >
                   tectonic releases
                 </a>
-                , extract <code className="bg-zinc-900 px-1 rounded">tectonic.exe</code>{" "}
+                , extract <code className="bg-surface px-1 rounded">tectonic.exe</code>{" "}
                 to a folder on your PATH (or set{" "}
-                <code className="bg-zinc-900 px-1 rounded">settings.tectonicPath</code>)
+                <code className="bg-surface px-1 rounded">settings.tectonicPath</code>)
               </span>
             )
           }
@@ -108,28 +108,28 @@ export function SettingsView() {
       </Section>
 
       <Section title="Claude Desktop (stdio)">
-        <p className="text-sm text-zinc-400 mb-3">
+        <p className="text-sm text-muted mb-3">
           In Claude Desktop open{" "}
-          <strong className="text-zinc-200">
+          <strong className="text-foreground">
             Settings → Developer → Edit config
           </strong>{" "}
           (it opens the right file for your build), paste the snippet below into{" "}
-          <code className="bg-zinc-900 px-1 rounded">mcpServers</code>, then{" "}
-          <strong className="text-zinc-200">quit Claude Desktop from the tray</strong>{" "}
+          <code className="bg-surface px-1 rounded">mcpServers</code>, then{" "}
+          <strong className="text-foreground">quit Claude Desktop from the tray</strong>{" "}
           and reopen it. The paths below are already filled in for this machine.
         </p>
         <CodeBlock value={claudeConfig} />
       </Section>
 
       <Section title="Claude Code CLI (stdio)">
-        <p className="text-sm text-zinc-400 mb-3">
+        <p className="text-sm text-muted mb-3">
           Run once in your terminal:
         </p>
         <CodeBlock value={claudeCodeCmd} />
       </Section>
 
       <Section title="ChatGPT Desktop / HTTP clients">
-        <p className="text-sm text-zinc-400 mb-3">
+        <p className="text-sm text-muted mb-3">
           In ChatGPT Desktop → Settings → Connectors → Add MCP server, paste:
         </p>
         <CodeBlock value={sys.mcpHttpUrl} />
@@ -147,10 +147,10 @@ function Section({
 }) {
   return (
     <section>
-      <h2 className="text-sm uppercase tracking-wide text-zinc-500 mb-3">
+      <h2 className="text-sm uppercase tracking-wide text-muted mb-3">
         {title}
       </h2>
-      <div className="bg-[var(--panel)] border border-zinc-800 rounded-xl p-4 space-y-3">
+      <div className="bg-panel border border-border rounded-xl p-4 space-y-3">
         {children}
       </div>
     </section>
@@ -166,7 +166,7 @@ function Row({
 }) {
   return (
     <div className="grid grid-cols-[180px_1fr] gap-4 items-start text-sm">
-      <span className="text-zinc-500">{label}</span>
+      <span className="text-muted">{label}</span>
       <span>{value}</span>
     </div>
   );
@@ -176,8 +176,8 @@ function CodeBlock({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="relative group">
-      <pre className="bg-zinc-950 border border-zinc-800 rounded-md p-3 text-xs overflow-auto scrollbar-thin">
-        <code className="font-mono text-zinc-200">{value}</code>
+      <pre className="bg-background border border-border rounded-md p-3 text-xs overflow-auto scrollbar-thin">
+        <code className="font-mono text-foreground">{value}</code>
       </pre>
       <button
         onClick={() => {
@@ -185,7 +185,7 @@ function CodeBlock({ value }: { value: string }) {
           setCopied(true);
           setTimeout(() => setCopied(false), 1200);
         }}
-        className="absolute top-2 right-2 px-2 py-1 text-xs rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 opacity-0 group-hover:opacity-100 transition"
+        className="absolute top-2 right-2 px-2 py-1 text-xs rounded bg-surface border border-border text-muted hover:text-foreground opacity-0 group-hover:opacity-100 transition"
       >
         {copied ? "Copied!" : "Copy"}
       </button>

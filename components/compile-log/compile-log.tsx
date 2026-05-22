@@ -26,9 +26,9 @@ export function CompileLog({ entries, status, onJumpToLine }: Props) {
   }, [entries]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 border-t border-zinc-800 text-xs">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-800">
-        <span className="text-zinc-500 uppercase tracking-wide">Log</span>
+    <div className="flex flex-col h-full bg-background border-t border-border text-xs">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border">
+        <span className="text-muted uppercase tracking-wide">Log</span>
         <StatusPill status={status} />
       </div>
       <div
@@ -36,7 +36,7 @@ export function CompileLog({ entries, status, onJumpToLine }: Props) {
         className="flex-1 overflow-auto scrollbar-thin font-mono p-2 space-y-0.5"
       >
         {entries.length === 0 && (
-          <p className="text-zinc-600">
+          <p className="text-subtle">
             Compile output will appear here. Press Compile or Ctrl+Enter.
           </p>
         )}
@@ -58,7 +58,7 @@ export function CompileLog({ entries, status, onJumpToLine }: Props) {
               key={i}
               className={cn(
                 "whitespace-pre-wrap break-all px-2",
-                e.stream === "stderr" ? "text-amber-300/90" : "text-zinc-300",
+                e.stream === "stderr" ? "text-amber-300/90" : "text-foreground",
               )}
             >
               {e.text}

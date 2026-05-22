@@ -63,23 +63,23 @@ export function JoinForm({ projectId, projectName, isPrivate }: Props) {
     <div className="min-h-screen flex items-center justify-center px-6">
       <form
         onSubmit={submit}
-        className="w-full max-w-md bg-[var(--panel)] border border-zinc-800 rounded-xl p-6"
+        className="w-full max-w-md bg-panel border border-border rounded-xl p-6"
       >
         <h1 className="text-lg font-medium mb-1">Join "{projectName}"</h1>
-        <p className="text-zinc-500 text-sm mb-5">
+        <p className="text-muted text-sm mb-5">
           {isPrivate ? "Private project — password required." : "Pick a name your collaborators will see."}
         </p>
 
-        <label className="block text-sm mb-1 text-zinc-400">Your name</label>
+        <label className="block text-sm mb-1 text-muted">Your name</label>
         <input
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Alex"
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)]"
+          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent"
         />
 
-        <label className="block text-sm mt-4 mb-2 text-zinc-400">
+        <label className="block text-sm mt-4 mb-2 text-muted">
           Cursor color
         </label>
         <div className="flex flex-wrap gap-1.5">
@@ -90,7 +90,7 @@ export function JoinForm({ projectId, projectName, isPrivate }: Props) {
               onClick={() => setColor(c)}
               style={{ background: c }}
               className={`w-6 h-6 rounded-full transition ${
-                c === color ? "ring-2 ring-white" : ""
+                c === color ? "ring-2 ring-foreground" : ""
               }`}
             />
           ))}
@@ -98,7 +98,7 @@ export function JoinForm({ projectId, projectName, isPrivate }: Props) {
 
         {isPrivate && (
           <>
-            <label className="block text-sm mt-4 mb-1 text-zinc-400 inline-flex items-center gap-1">
+            <label className="block text-sm mt-4 mb-1 text-muted inline-flex items-center gap-1">
               <LockIcon width={12} height={12} /> Password
             </label>
             <input
@@ -106,7 +106,7 @@ export function JoinForm({ projectId, projectName, isPrivate }: Props) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Project password"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)]"
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent"
             />
           </>
         )}
@@ -117,7 +117,7 @@ export function JoinForm({ projectId, projectName, isPrivate }: Props) {
           <button
             type="submit"
             disabled={!name.trim() || submitting}
-            className="px-4 py-2 rounded-md bg-[var(--accent)] hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition"
+            className="px-4 py-2 rounded-md bg-accent hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition"
           >
             {submitting ? "Joining…" : "Join project"}
           </button>

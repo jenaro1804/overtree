@@ -35,15 +35,15 @@ export function FileTree({
   onDelete,
 }: Props) {
   return (
-    <div className="h-full flex flex-col bg-[var(--panel)] text-sm">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
-        <span className="text-xs uppercase tracking-wide text-zinc-500">
+    <div className="h-full flex flex-col bg-panel text-sm">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+        <span className="text-xs uppercase tracking-wide text-muted">
           Files
         </span>
         <button
           onClick={() => onCreate("")}
           title="New file at root"
-          className="text-zinc-500 hover:text-zinc-200"
+          className="text-muted hover:text-foreground"
         >
           <PlusIcon width={14} height={14} />
         </button>
@@ -89,7 +89,7 @@ function Node({
       <div>
         <div
           style={indent}
-          className="group flex items-center gap-1 pr-2 py-1 hover:bg-zinc-900 cursor-pointer"
+          className="group flex items-center gap-1 pr-2 py-1 hover:bg-surface cursor-pointer"
           onClick={() => setOpen((v) => !v)}
         >
           {open ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
@@ -100,7 +100,7 @@ function Node({
               e.stopPropagation();
               onCreate(node.path);
             }}
-            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200"
+            className="opacity-0 group-hover:opacity-100 text-muted hover:text-foreground"
             title="New file in this folder"
           >
             <PlusIcon width={12} height={12} />
@@ -110,7 +110,7 @@ function Node({
               e.stopPropagation();
               onDelete(node.path);
             }}
-            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400"
+            className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-400"
             title="Delete folder"
           >
             <TrashIcon width={12} height={12} />
@@ -138,18 +138,18 @@ function Node({
       onClick={() => onOpen(node.path)}
       className={cn(
         "group flex items-center gap-1 pr-2 py-1 cursor-pointer",
-        isActive ? "bg-zinc-800 text-white" : "hover:bg-zinc-900",
+        isActive ? "bg-surface text-foreground" : "hover:bg-surface",
       )}
     >
       <span className="w-3" />
-      <FileIcon width={14} height={14} className="text-zinc-500" />
+      <FileIcon width={14} height={14} className="text-muted" />
       <span className="truncate flex-1">{node.name}</span>
       <button
         onClick={(e) => {
           e.stopPropagation();
           onDelete(node.path);
         }}
-        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400"
+        className="opacity-0 group-hover:opacity-100 text-subtle hover:text-red-400"
         title="Delete"
       >
         <TrashIcon width={12} height={12} />

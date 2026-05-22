@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { yCollab } from "y-codemirror.next";
-import { EditorState, Prec } from "@codemirror/state";
+import { Compartment, EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { StreamLanguage } from "@codemirror/language";
@@ -12,6 +12,10 @@ import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { basicSetup } from "codemirror";
 import { encodeRoom } from "@/lib/identity";
+import type { Theme } from "@/lib/theme";
+
+// Dark = oneDark; light = no extra theme (basicSetup ships a light highlight).
+const themeExtension = (theme: Theme) => (theme === "dark" ? oneDark : []);
 
 export type CodeMirrorHandle = {
   gotoLine: (line: number) => void;
@@ -24,6 +28,7 @@ type Props = {
   path: string;
   userName: string;
   userColor: string;
+  theme: Theme;
   onSave?: () => void;
   onCompile?: () => void;
   onPeers?: (peers: Peer[]) => void;
@@ -36,6 +41,7 @@ export function YjsCodeMirror({
   path,
   userName,
   userColor,
+  theme,
   onSave,
   onCompile,
   onPeers,
@@ -44,6 +50,11 @@ export function YjsCodeMirror({
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const themeComp = useRef(new Compartment());
+  // Initial theme for editor creation, kept out of the main effect's deps so a
+  // theme switch reconfigures the compartment instead of recreating the editor.
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const onSaveRef = useRef(onSave);
   const onCompileRef = useRef(onCompile);
   const onPeersRef = useRef(onPeers);
@@ -101,7 +112,7 @@ export function YjsCodeMirror({
         state: EditorState.create({
           extensions: [
             basicSetup,
-            oneDark,
+            themeComp.current.of(themeExtension(themeRef.current)),
             ...(isTex ? [StreamLanguage.define(stex)] : []),
             yCollab(ytext, provider.awareness, { undoManager: undoMgr }),
             // Prec.highest so these win over basicSetup's keymaps, which
@@ -157,6 +168,14 @@ export function YjsCodeMirror({
         viewRef.current = null;
       };
   }, [projectId, path, userName, userColor]);
+
+  // Swap the theme live without recreating the editor (keeps the Yjs
+  // connection, scroll position and cursor intact).
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: themeComp.current.reconfigure(themeExtension(theme)),
+    });
+  }, [theme]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }
