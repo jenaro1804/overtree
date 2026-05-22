@@ -17,6 +17,7 @@ import {
 } from "@/components/compile-log/compile-log";
 import { PresenceBar } from "@/components/presence/presence-bar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ShareButton } from "./share-button";
 import { useTheme } from "@/lib/theme";
 
 const YjsCodeMirror = dynamic(
@@ -30,6 +31,7 @@ type ProjectMeta = {
   id: string;
   name: string;
   mainFile: string;
+  private: boolean;
 };
 
 type CompileStatus = "idle" | "running" | "ok" | "failed";
@@ -214,6 +216,7 @@ export function EditorShell({
           </button>
           <PresenceBar me={user} peers={peers} connected={connected} />
           <ThemeToggle />
+          <ShareButton projectId={project.id} isPrivate={project.private} />
           <button
             onClick={saveNow}
             disabled={saveStatus === "saving"}
@@ -228,12 +231,12 @@ export function EditorShell({
               <SaveIcon width={12} height={12} />
             )}
             {saveStatus === "saving"
-              ? "Guardando…"
+              ? "Saving…"
               : saveStatus === "saved"
-                ? "Guardado"
+                ? "Saved"
                 : saveStatus === "error"
                   ? "Error"
-                  : "Guardar"}
+                  : "Save"}
           </button>
           <button
             onClick={compile}

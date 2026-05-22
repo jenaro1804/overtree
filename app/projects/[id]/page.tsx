@@ -22,7 +22,12 @@ export default async function ProjectPage({ params }: Props) {
   }
   return (
     <EditorShell
-      project={{ id: meta.id, name: meta.name, mainFile: meta.mainFile }}
+      project={{
+        id: meta.id,
+        name: meta.name,
+        mainFile: meta.mainFile,
+        private: meta.private,
+      }}
       user={{
         name: session.name ?? "Anonymous",
         color: session.color ?? "#3b82f6",
