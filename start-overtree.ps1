@@ -1,5 +1,5 @@
 #requires -Version 5.1
-# Arranca Overtree en modo dev y abre el navegador cuando el server ya responde.
+# Arranca Overtree en modo produccion y abre el navegador cuando el server ya responde.
 # Portable: se ubica solo via $PSScriptRoot, respeta $env:PORT (default 3000).
 
 $ErrorActionPreference = "Stop"
@@ -29,4 +29,4 @@ Start-Job -ArgumentList $url, $port {
 } | Out-Null
 
 # Server en primer plano: esta ventana muestra los logs. Cerrarla detiene Overtree.
-npm run dev
+npm run start
