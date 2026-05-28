@@ -32,13 +32,6 @@ export function getSession(id: string): CompileSession | undefined {
 }
 
 export async function compile(id: string): Promise<CompileSession> {
-  // Flush any pending Y.Doc edits to disk so we compile the latest content.
-  try {
-    const { flushProjectDocs } = await import("@/lib/yjs/doc-manager");
-    await flushProjectDocs(id);
-  } catch {
-    /* doc-manager not loaded — nothing to flush */
-  }
   const meta = await readMeta(id);
   // cwd stays the project dir so Tectonic finds the source (.tex, images,
   // .bib). Only the OUTPUT goes to the per-machine cache (kept out of OneDrive).
