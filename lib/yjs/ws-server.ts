@@ -67,16 +67,32 @@ export async function handleYjsConnection(
 ): Promise<void> {
   const { projectId, filePath } = auth;
 
+  // Buffer messages that arrive before getRoom() completes. Without this, the
+  // client's initial sync step 1 (sent immediately on ws.onopen) races against
+  // the async file I/O in getRoom() — if the message arrives first there is no
+  // listener yet, the EventEmitter drops it, and the server never learns the
+  // client's state vector, so it never sends sync step 2 (content) → empty editor.
+  const pending: Array<ArrayBuffer | Buffer> = [];
+  const bufferMsg = (data: ArrayBuffer | Buffer) => pending.push(data);
+  ws.on("message", bufferMsg);
+
   let room: Room;
   try {
     room = await getRoom(projectId, filePath);
   } catch (err) {
     console.error("getRoom failed", err);
+    ws.off("message", bufferMsg);
     ws.close(1011, "no room");
     return;
   }
 
   attachConnection(room, ws);
+
+  if (ws.readyState !== ws.OPEN) {
+    ws.off("message", bufferMsg);
+    detachConnection(room, ws);
+    return;
+  }
   ws.binaryType = "arraybuffer";
 
   // Send initial sync step 1 + awareness state
@@ -132,7 +148,7 @@ export async function handleYjsConnection(
   room.doc.on("update", onDocUpdate);
   room.awareness.on("update", onAwarenessUpdate);
 
-  ws.on("message", (data: ArrayBuffer | Buffer) => {
+  const handleMessage = (data: ArrayBuffer | Buffer) => {
     try {
       const bytes =
         data instanceof ArrayBuffer
@@ -164,7 +180,14 @@ export async function handleYjsConnection(
     } catch (err) {
       console.error("yjs message error", err);
     }
-  });
+  };
+
+  // Replace buffer listener with real handler and replay any buffered messages.
+  ws.off("message", bufferMsg);
+  ws.on("message", handleMessage);
+  for (const data of pending) {
+    handleMessage(data);
+  }
 
   const cleanup = () => {
     room.doc.off("update", onDocUpdate);
