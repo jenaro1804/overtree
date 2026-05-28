@@ -138,6 +138,7 @@ export function YjsCodeMirror({
               ]),
             ),
             keymap.of([indentWithTab, ...defaultKeymap]),
+            EditorView.lineWrapping,
             EditorView.theme({
               "&": { height: "100%" },
               ".cm-scroller": { overflow: "auto" },
