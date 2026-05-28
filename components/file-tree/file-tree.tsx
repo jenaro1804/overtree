@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -8,6 +8,7 @@ import {
   FolderIcon,
   PlusIcon,
   TrashIcon,
+  UploadIcon,
 } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ type Props = {
   onOpen: (path: string) => void;
   onCreate: (parent: string) => void;
   onDelete: (path: string) => void;
+  onUpload: (parent: string, files: FileList) => void;
 };
 
 export function FileTree({
@@ -33,21 +35,72 @@ export function FileTree({
   onOpen,
   onCreate,
   onDelete,
+  onUpload,
 }: Props) {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   return (
-    <div className="h-full flex flex-col bg-panel text-sm">
+    <div
+      className={cn(
+        "h-full flex flex-col bg-panel text-sm relative",
+        isDragOver && "ring-2 ring-inset ring-blue-500",
+      )}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as HTMLElement)) {
+          setIsDragOver(false);
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        if (e.dataTransfer.files.length > 0) {
+          onUpload("", e.dataTransfer.files);
+        }
+      }}
+    >
+      {isDragOver && (
+        <div className="absolute inset-0 bg-blue-500/10 flex items-center justify-center pointer-events-none z-10">
+          <span className="text-blue-400 text-xs font-medium">Drop files here</span>
+        </div>
+      )}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <span className="text-xs uppercase tracking-wide text-muted">
           Files
         </span>
-        <button
-          onClick={() => onCreate("")}
-          title="New file at root"
-          className="text-muted hover:text-foreground"
-        >
-          <PlusIcon width={14} height={14} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => inputRef.current?.click()}
+            title="Upload files"
+            className="text-muted hover:text-foreground"
+          >
+            <UploadIcon width={14} height={14} />
+          </button>
+          <button
+            onClick={() => onCreate("")}
+            title="New file at root"
+            className="text-muted hover:text-foreground"
+          >
+            <PlusIcon width={14} height={14} />
+          </button>
+        </div>
       </div>
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) {
+            onUpload("", e.target.files);
+            e.target.value = "";
+          }
+        }}
+      />
       <div className="flex-1 overflow-auto scrollbar-thin py-1">
         {tree.map((n) => (
           <Node
@@ -58,6 +111,7 @@ export function FileTree({
             onOpen={onOpen}
             onCreate={onCreate}
             onDelete={onDelete}
+            onUpload={onUpload}
           />
         ))}
       </div>
@@ -72,6 +126,7 @@ function Node({
   onOpen,
   onCreate,
   onDelete,
+  onUpload,
 }: {
   node: FileNode;
   depth: number;
@@ -79,8 +134,11 @@ function Node({
   onOpen: (p: string) => void;
   onCreate: (p: string) => void;
   onDelete: (p: string) => void;
+  onUpload: (p: string, files: FileList) => void;
 }) {
   const [open, setOpen] = useState(true);
+  const [isDirDragOver, setIsDirDragOver] = useState(false);
+  const dirInputRef = useRef<HTMLInputElement>(null);
   const indent = { paddingLeft: 8 + depth * 12 };
   const isActive = node.path === activePath;
 
@@ -89,12 +147,43 @@ function Node({
       <div>
         <div
           style={indent}
-          className="group flex items-center gap-1 pr-2 py-1 hover:bg-surface cursor-pointer"
+          className={cn(
+            "group flex items-center gap-1 pr-2 py-1 cursor-pointer",
+            isDirDragOver ? "bg-blue-500/20" : "hover:bg-surface",
+          )}
           onClick={() => setOpen((v) => !v)}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDirDragOver(true);
+          }}
+          onDragLeave={() => setIsDirDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDirDragOver(false);
+            if (e.dataTransfer.files.length > 0) {
+              onUpload(node.path, e.dataTransfer.files);
+            }
+          }}
         >
-          {open ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
+          {open ? (
+            <ChevronDownIcon width={12} height={12} />
+          ) : (
+            <ChevronRightIcon width={12} height={12} />
+          )}
           <FolderIcon width={14} height={14} className="text-amber-400/80" />
           <span className="truncate flex-1">{node.name}</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              dirInputRef.current?.click();
+            }}
+            className="opacity-0 group-hover:opacity-100 text-muted hover:text-foreground"
+            title="Upload files to this folder"
+          >
+            <UploadIcon width={12} height={12} />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -115,6 +204,19 @@ function Node({
           >
             <TrashIcon width={12} height={12} />
           </button>
+          <input
+            ref={dirInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              if (e.target.files?.length) {
+                onUpload(node.path, e.target.files);
+                e.target.value = "";
+              }
+            }}
+          />
         </div>
         {open &&
           (node.children ?? []).map((c) => (
@@ -126,6 +228,7 @@ function Node({
               onOpen={onOpen}
               onCreate={onCreate}
               onDelete={onDelete}
+              onUpload={onUpload}
             />
           ))}
       </div>

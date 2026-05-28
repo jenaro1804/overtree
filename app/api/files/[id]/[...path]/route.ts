@@ -69,8 +69,12 @@ export async function PUT(req: Request, { params }: Ctx) {
   const { id, path: parts } = await params;
   const rel = parts.join("/");
   try {
-    const body = await req.text();
-    await writeFile(id, rel, body);
+    const ct = req.headers.get("content-type") ?? "";
+    const content =
+      ct.startsWith("text/") || ct.includes("json")
+        ? await req.text()
+        : Buffer.from(await req.arrayBuffer());
+    await writeFile(id, rel, content);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

@@ -163,6 +163,19 @@ export function EditorShell({
     }
   }
 
+  async function uploadFiles(parent: string, files: FileList) {
+    for (const file of Array.from(files)) {
+      const filePath = parent ? `${parent}/${file.name}` : file.name;
+      const buffer = await file.arrayBuffer();
+      await fetch(`/api/files/${project.id}/${filePath}`, {
+        method: "PUT",
+        headers: { "content-type": file.type || "application/octet-stream" },
+        body: buffer,
+      });
+    }
+    await reloadTree();
+  }
+
   async function deletePath(path: string) {
     if (!confirm(`Delete "${path}"?`)) return;
     await fetch(`/api/files/${project.id}/${encodeURI(path)}`, {
@@ -263,6 +276,7 @@ export function EditorShell({
               onOpen={setActivePath}
               onCreate={createFile}
               onDelete={deletePath}
+              onUpload={uploadFiles}
             />
           </Panel>
           <PanelResizeHandle className="w-px bg-border hover:bg-border-strong transition" />
