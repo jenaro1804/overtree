@@ -7,6 +7,7 @@ import { yCollab } from "y-codemirror.next";
 import { Compartment, EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
+import { EditorSelection } from "@codemirror/state";
 import { StreamLanguage } from "@codemirror/language";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -16,6 +17,23 @@ import type { Theme } from "@/lib/theme";
 
 // Dark = oneDark; light = no extra theme (basicSetup ships a light highlight).
 const themeExtension = (theme: Theme) => (theme === "dark" ? oneDark : []);
+
+function wrapSelection(view: EditorView, before: string, after: string) {
+  view.dispatch(
+    view.state.changeByRange((range) => {
+      const selected = view.state.sliceDoc(range.from, range.to);
+      const insert = before + selected + after;
+      return {
+        changes: { from: range.from, to: range.to, insert },
+        range: EditorSelection.range(
+          range.from + before.length,
+          range.from + before.length + selected.length,
+        ),
+      };
+    }),
+  );
+  view.focus();
+}
 
 export type CodeMirrorHandle = {
   gotoLine: (line: number) => void;
@@ -132,6 +150,30 @@ export function YjsCodeMirror({
                   preventDefault: true,
                   run: () => {
                     onCompileRef.current?.();
+                    return true;
+                  },
+                },
+                {
+                  key: "Mod-b",
+                  preventDefault: true,
+                  run: (view) => {
+                    wrapSelection(view, "\\textbf{", "}");
+                    return true;
+                  },
+                },
+                {
+                  key: "Mod-i",
+                  preventDefault: true,
+                  run: (view) => {
+                    wrapSelection(view, "\\textit{", "}");
+                    return true;
+                  },
+                },
+                {
+                  key: "Mod-u",
+                  preventDefault: true,
+                  run: (view) => {
+                    wrapSelection(view, "\\underline{", "}");
                     return true;
                   },
                 },
