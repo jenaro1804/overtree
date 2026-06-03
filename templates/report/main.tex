@@ -1,21 +1,31 @@
+% NO MODIFICAR EL TEMPLATE
+
 \documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{geometry}
+\usepackage{listings}
 \usepackage{float}
+\usepackage{listingsutf8}
+\usepackage{newunicodechar}
+\usepackage{hyperref}
+\newunicodechar{└}{\texttt{\char"2514}}
+
+
 \geometry{margin=1in}
 \title{
-Actividad 3.1. Crear una red en Packet Tracer\\
-\large Análisis de criptografía y seguridad (Grupo 302)
+TITULO.\\
+\large SUBTITULO
 }
 \author{
-A01646850 Jenaro Alcaraz Saragosa\\
+NOMBRE\\
 }
-\date{5/19/2026}
+\date{1/1/2026}
 
 \begin{document}
 \begin{figure}[]
     \centering
-    \includegraphics[width=0.9\textwidth]{Picture1 (1).jpg}
+    \includegraphics[width=0.9\textwidth]{Logo_tec.jpg}
     \label{fig:mi-imagen}
 \end{figure}
 
@@ -23,140 +33,35 @@ A01646850 Jenaro Alcaraz Saragosa\\
 
 \newpage
 
-\section*{Procedimiento}
+\section*{Contenido}
 
-Para comenzar la actividad sobre Cisco Packet Tracer, lo primero fue agregar los dispositivos requeridos al tablero. En concreto fueron tres Computadoras (PC0, PC1, PC2), un switch de modelo 2960 (Swithc0), un router inalámbrico modelo WRT300N (Router0), una laptop (Laptop0), una tableta (TabletPC0) y un smartphone (Smartphone0). Con estos dispositivos se conforma la topología del tablero. 
-
-Ya que se añadieron los dispositivos, se procedió al cableado de la red. Las tres computadoras se conectaron al switch con un cable de cobre directo, utilizando en cada caso la interfaz FastEthernet0 de la PC hacia un puerto FastEthernet del switch. Despues el switch se enlazó a un puerto Ethernet LAN del router inalámbrico, también con cable de cobre directo. Esto para que todos los dispositivos conectados por medio de cable quedaran conectados dentro de la misma red local administrada por el router WRT300N.
-
-En cuanto a los dispositivos inalámbricos, la laptop requirió un cambio de adaptador ya que de fábrica tiene una tarjeta de red Ethernet que no permite conexión WiFi. Asi que la laptop se apagó, se retiró el módulo Ethernet y se instaló en su lugar el adaptador WPC300N. Despues, se volvió a encender el dispositivo y quedó disponible el Wireless0. La tableta y el teléfono inteligente ya cuentan con conectividad inalámbrica integrada, por lo que se conectaron automáticamente a la red WiFi que emite el router.
-
-Ya que las conexiones físicas e inalámbricas quedaron conectadas, emepezamos a configurar ls direcciones IP de la red con DHCP. Se habilitó esta opción (DHCP) en toads las PCs debido a que en los dispositivos inalámbricos esta habilitado por defectro. De esta manera todos los dispositivos quedaron operando bajo el mismo protocolo. Ademas, el router inalámbrico WRT300N opera por defecto como servidor DHCP. Asi se le entregaron direcciones a todos los dispositivos conectados dentro de la red 192.168.0.0 con máscara 255.255.255.0 y estableciéndose el mismo gateway en la dirección 192.168.0.1. 
-
-Para comprobar que la asignación funcionó correctamente, verificamos la configuración de red de cada dispositivo usando el comando \texttt{ipconfig} en el \texttt{cmd} de cada dispositivo. De esta manera obtenemos la siguiente configuración mostrada en la tabla 1:
-
-\begin{table}[h]
-\centering
-\begin{tabular}{cccc}
-\hline
-\textbf{Dispositivo} & \textbf{IP Address} & \textbf{Subnet Mask} & \textbf{Default Gateway} \\ \hline
-PC0 & 192.168.0.104 & 255.255.255.0 & 192.168.0.1 \\
-PC1 & 192.168.0.105 & 255.255.255.0 & 192.168.0.1 \\
-PC2 & 192.168.0.106 & 255.255.255.0 & 192.168.0.1 \\
-Laptop & 192.168.0.103 & 255.255.255.0 & 192.168.0.1 \\
-Tablet & 192.168.0.102 & 255.255.255.0 & 192.168.0.1 \\ 
-Smartphone & 192.168.0.101 & 255.255.255.0 & 192.168.0.1 \\ \hline
-\end{tabular}
-\caption{Direcciones IP asignadas a los dispositivos de la red mediante DHCP.}
-\label{tab:ips_pcs}
-\end{table}
-
-Por último, se realizaron pruebas de conectividad mediante el comando \texttt{ping} entre las computadoras de la red. Esto para comprobar que pueden verse entre ellas dentro de la red. Se ejecutaron envíos desde cada PC hacia las otras dos en todas las combinaciones posibles. Asi conluimos que la red fue configurada correctamente y que la resolución de la practica fue exitosa.
 
 \newpage
-\appendix
-\section*{Evidencias de la configuración de red}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.7\textwidth]{Picrute1.png}
-    \caption{Topología final de la red en Cisco Packet Tracer.}
-    \label{fig:topologia-red}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture2.png}
-    \caption{Activación de DHCP en PC0.}
-    \label{fig:config-pc0}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture3.png}
-    \caption{Configuración IP obtenida por DHCP en PC0.}
-    \label{fig:config-pc1}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture4.png}
-    \caption{Activación de DHCP en PC1.}
-    \label{fig:config-pc0}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture5.png}
-    \caption{Configuración IP obtenida por DHCP en PC1.}
-    \label{fig:config-pc1}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture6.png}
-    \caption{Activación de DHCP en PC2.}
-    \label{fig:config-pc0}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture7.png}
-    \caption{Configuración IP obtenida por DHCP en PC2.}
-    \label{fig:config-pc1}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture8.png}
-    \caption{Cambio de adaptador en Laptop0.}
-    \label{fig:config-laptop}
-\end{figure}
-
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture9.png}
-    \caption{Configuración IP obtenida por DHCP en Laptop0.}
-    \label{fig:config-laptop}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture10.png}
-    \caption{Configuración IP obtenida por DHCP en Tablet PC0.}
-    \label{fig:config-tablet}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture11.png}
-    \caption{Configuración IP obtenida por DHCP en Smartphone0.}
-    \label{fig:config-smartphone}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture12.png}
-    \caption{Prueba de conectividad mediante ping de PC0 hacia PC1 y PC2.}
-    \label{fig:ping-pc0-pc1}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture13.png}
-    \caption{Prueba de conectividad mediante ping de PC1 hacia PC0 y PC2.}
-    \label{fig:ping-pc0-pc2}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{Picture14.png}
-    \caption{Prueba de conectividad mediante ping de PC2 hacia PC0 y PC1.}
-    \label{fig:ping-pc0-pc2}
-\end{figure}
+%quitar comentario para incluir todas las q no estan citadas
+%\nocite{*} 
+% \clearpage
+% \newpage
 
 
 
+% \newpage
+% \appendix
+% \section*{Anexo A. Notebook con análisis de tráfico}
+
+% A continuación, se anexa el siguiente url que permite ver el análisis de trafico en python:
+
+% \begin{center}
+% \href{https://github.com/jenaro1804/MA2002B-Jenaro/blob/main/Tarea3.1/analisis_de_trafico.ipynb}{\underline{Haga click para redirigirse a la hoja de calculo}}
+% \end{center}
+
+% \section*{Anexo B. Imágenes correspondientes CMD y WireShark}
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=.9\textwidth]{.png}
+%     \label{fig:mi-imagen}
+%     \caption{DESCRIPCION DE IMAGEN}
+% \end{figure}
 
 \end{document}
