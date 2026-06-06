@@ -43,6 +43,13 @@ export type SubjectHandlers = {
   onDropProject: (id: string, folder: string) => void;
   /** A subject was dropped above/below a sibling → reorder. */
   onReorderSubject: (dragged: string, target: string, edge: "top" | "bottom") => void;
+  /** A project was dropped before/after another within the same subject → reorder. */
+  onReorderProject: (
+    folder: string,
+    draggedId: string,
+    targetId: string,
+    edge: "left" | "right",
+  ) => void;
 };
 
 type Props = {
@@ -256,6 +263,7 @@ export function SubjectSection({
                   onDelete={handlers.onDeleteProject}
                   onRename={handlers.onRenameProject}
                   onMove={handlers.onMoveProject}
+                  onReorder={handlers.onReorderProject}
                 />
               ))}
             </ul>

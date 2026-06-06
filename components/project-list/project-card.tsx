@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import {
+  draggable,
+  dropTargetForElements,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
+import {
+  attachClosestEdge,
+  extractClosestEdge,
+  type Edge,
+} from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import {
   FolderIcon,
   LockIcon,
@@ -15,36 +24,93 @@ import { type Project, ROOT_KEY } from "./tree";
 type Props = {
   project: Project;
   folders: string[];
+  /** Whether this card accepts reorder drops (off in the search view). */
+  reorderable?: boolean;
   onDelete: (id: string, name: string) => void;
   onRename: (id: string, name: string) => void;
   onMove: (id: string, folder: string) => void;
+  /** Drop a project before/after this one within the same subject → reorder. */
+  onReorder: (
+    folder: string,
+    draggedId: string,
+    targetId: string,
+    edge: "left" | "right",
+  ) => void;
 };
 
 export function ProjectCard({
   project: p,
   folders,
+  reorderable = true,
   onDelete,
   onRename,
   onMove,
+  onReorder,
 }: Props) {
   const ref = useRef<HTMLLIElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [edge, setEdge] = useState<Edge | null>(null);
+
+  // Latest props for the DnD callbacks without re-registering each render.
+  const cur = useRef({ id: p.id, folder: p.folder || ROOT_KEY, onReorder });
+  cur.current = { id: p.id, folder: p.folder || ROOT_KEY, onReorder };
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    return draggable({
-      element: el,
-      getInitialData: () => ({
-        type: "project",
-        id: p.id,
-        folder: p.folder || ROOT_KEY,
+    const cleanups = [
+      draggable({
+        element: el,
+        getInitialData: () => ({
+          type: "project",
+          id: cur.current.id,
+          folder: cur.current.folder,
+        }),
+        onDragStart: () => setDragging(true),
+        onDrop: () => setDragging(false),
       }),
-      onDragStart: () => setDragging(true),
-      onDrop: () => setDragging(false),
-    });
-  }, [p.id, p.folder]);
+    ];
+    if (reorderable) {
+      cleanups.push(
+        dropTargetForElements({
+          element: el,
+          // Only a same-subject project reorders onto this card; cross-subject
+          // drags fall through to the section (= move), and never onto itself.
+          canDrop: ({ source }) =>
+            source.data.type === "project" &&
+            source.data.id !== cur.current.id &&
+            source.data.folder === cur.current.folder,
+          getData: ({ input, element }) =>
+            attachClosestEdge(
+              { type: "project-target", id: cur.current.id },
+              { input, element, allowedEdges: ["left", "right"] },
+            ),
+          onDrag: ({ self, location }) =>
+            setEdge(
+              location.current.dropTargets[0]?.element === self.element
+                ? extractClosestEdge(self.data)
+                : null,
+            ),
+          onDragLeave: () => setEdge(null),
+          onDrop: ({ source, self, location }) => {
+            setEdge(null);
+            if (location.current.dropTargets[0]?.element !== self.element) return;
+            const e = extractClosestEdge(self.data);
+            if (e === "left" || e === "right") {
+              cur.current.onReorder(
+                cur.current.folder,
+                source.data.id as string,
+                cur.current.id,
+                e,
+              );
+            }
+          },
+        }),
+      );
+    }
+    return combine(...cleanups);
+  }, [reorderable]);
 
   return (
     <li
@@ -53,6 +119,12 @@ export function ProjectCard({
         dragging ? "opacity-40" : ""
       }`}
     >
+      {edge === "left" && (
+        <div className="pointer-events-none absolute top-2 bottom-2 -left-2 w-0.5 rounded bg-accent" />
+      )}
+      {edge === "right" && (
+        <div className="pointer-events-none absolute top-2 bottom-2 -right-2 w-0.5 rounded bg-accent" />
+      )}
       <Link href={`/projects/${p.id}`} draggable={false} className="block">
         <div className="flex items-center gap-2 mb-3 text-muted">
           <FolderIcon />

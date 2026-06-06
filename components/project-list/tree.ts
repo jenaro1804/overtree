@@ -145,3 +145,21 @@ export function reorderSubjects(
   const insertAt = edge === "bottom" ? blockEnd(without, tStart) : tStart;
   return [...without.slice(0, insertAt), ...block, ...without.slice(insertAt)];
 }
+
+/**
+ * Reorder a project id before/after `targetId` within a single folder's order.
+ * `after` = right/bottom edge. Pure; returns a new array (or the same on no-op).
+ */
+export function reorderProjects(
+  order: string[],
+  draggedId: string,
+  targetId: string,
+  edge: "left" | "right" | "top" | "bottom",
+): string[] {
+  if (draggedId === targetId) return order;
+  const without = order.filter((id) => id !== draggedId);
+  const ti = without.indexOf(targetId);
+  if (ti === -1) return order;
+  const insertAt = edge === "right" || edge === "bottom" ? ti + 1 : ti;
+  return [...without.slice(0, insertAt), draggedId, ...without.slice(insertAt)];
+}
