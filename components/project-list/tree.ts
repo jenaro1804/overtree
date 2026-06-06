@@ -107,3 +107,41 @@ export function descendantFolders(subjectOrder: string[], path: string): string[
   const prefix = path + "/";
   return subjectOrder.filter((f) => f.startsWith(prefix));
 }
+
+/** Parent folder path of a folder ("" for top-level). */
+export function parentFolder(path: string): string {
+  const i = path.lastIndexOf("/");
+  return i === -1 ? ROOT_KEY : path.slice(0, i);
+}
+
+/** End (exclusive) of the contiguous block of `subjectOrder[start]` + descendants. */
+function blockEnd(order: string[], start: number): number {
+  const prefix = order[start] + "/";
+  let i = start + 1;
+  while (i < order.length && order[i].startsWith(prefix)) i++;
+  return i;
+}
+
+/**
+ * Reorder a subject among its SIBLINGS (same parent), dropping it above/below
+ * `target`. Moves the whole block (subject + its descendants) so nesting stays
+ * intact. No-op if they aren't siblings or it's a self-drop. Pure.
+ */
+export function reorderSubjects(
+  order: string[],
+  dragged: string,
+  target: string,
+  edge: "top" | "bottom",
+): string[] {
+  if (dragged === target) return order;
+  if (parentFolder(dragged) !== parentFolder(target)) return order;
+  const dStart = order.indexOf(dragged);
+  if (dStart === -1) return order;
+  const dEnd = blockEnd(order, dStart);
+  const block = order.slice(dStart, dEnd);
+  const without = [...order.slice(0, dStart), ...order.slice(dEnd)];
+  const tStart = without.indexOf(target);
+  if (tStart === -1) return order;
+  const insertAt = edge === "bottom" ? blockEnd(without, tStart) : tStart;
+  return [...without.slice(0, insertAt), ...block, ...without.slice(insertAt)];
+}

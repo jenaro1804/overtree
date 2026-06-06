@@ -75,3 +75,16 @@ button {
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: var(--border-strong);
 }
+
+/* Brief confirmation flash after a subject is dropped into its new position. */
+@keyframes subject-flash {
+  0% {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.subject-flash {
+  animation: subject-flash 0.7s ease-out;
+}

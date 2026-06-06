@@ -144,3 +144,14 @@ export const MoveIcon = (p: SVGProps<SVGSVGElement>) => (
     <path d="M12 16V9M9 12l3-3 3 3" />
   </svg>
 );
+
+export const GripIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)} fill="currentColor" stroke="none">
+    <circle cx="9" cy="6" r="1.4" />
+    <circle cx="15" cy="6" r="1.4" />
+    <circle cx="9" cy="12" r="1.4" />
+    <circle cx="15" cy="12" r="1.4" />
+    <circle cx="9" cy="18" r="1.4" />
+    <circle cx="15" cy="18" r="1.4" />
+  </svg>
+);
