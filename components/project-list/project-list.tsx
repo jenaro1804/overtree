@@ -178,6 +178,7 @@ export function ProjectList() {
     onDeleteProject,
     onRenameProject,
     onMoveProject,
+    onDropProject: onMoveProject,
   };
 
   // --- Derived ---------------------------------------------------------------

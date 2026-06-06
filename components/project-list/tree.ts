@@ -21,6 +21,9 @@ export type Layout = {
 export const ROOT_KEY = "";
 export const DEFAULT_SORT: SortMode = "updated";
 
+/** dataTransfer MIME for dragging a project card onto a subject. */
+export const DRAG_PROJECT_MIME = "application/x-overtree-project";
+
 export const SORT_LABELS: Record<SortMode, string> = {
   alphabetical: "Alphabetical",
   updated: "Last modified",

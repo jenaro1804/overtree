@@ -1,5 +1,6 @@
 "use client";
 
+import { type DragEvent, useState } from "react";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -14,6 +15,7 @@ import {
   type SortMode,
   type TreeNode,
   DEFAULT_SORT,
+  DRAG_PROJECT_MIME,
   SORT_LABELS,
   sortProjects,
 } from "./tree";
@@ -27,6 +29,8 @@ export type SubjectHandlers = {
   onDeleteProject: (id: string, name: string) => void;
   onRenameProject: (id: string, name: string) => void;
   onMoveProject: (id: string, folder: string) => void;
+  /** A project card was dropped onto this subject (folder = target path). */
+  onDropProject: (id: string, folder: string) => void;
 };
 
 type Props = {
@@ -58,9 +62,47 @@ export function SubjectSection({
     layout.projectOrder[node.path] ?? [],
   );
   const total = node.projects.length;
+  const [dropOver, setDropOver] = useState(false);
+
+  function isProjectDrag(e: DragEvent): boolean {
+    return e.dataTransfer.types.includes(DRAG_PROJECT_MIME);
+  }
+  function onDragOver(e: DragEvent) {
+    if (!isProjectDrag(e)) return;
+    e.preventDefault(); // allow drop
+    e.stopPropagation(); // innermost subject wins (nested)
+    e.dataTransfer.dropEffect = "move";
+    if (!dropOver) setDropOver(true);
+  }
+  function onDragLeave(e: DragEvent) {
+    e.stopPropagation();
+    setDropOver(false);
+  }
+  function onDrop(e: DragEvent) {
+    if (!isProjectDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropOver(false);
+    try {
+      const { id, folder } = JSON.parse(
+        e.dataTransfer.getData(DRAG_PROJECT_MIME),
+      ) as { id: string; folder: string };
+      if (folder !== node.path) handlers.onDropProject(id, node.path);
+    } catch {
+      /* malformed payload */
+    }
+  }
 
   return (
-    <section style={{ marginLeft: depth * 16 }}>
+    <section
+      style={{ marginLeft: depth * 16 }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={`rounded-lg transition ${
+        dropOver ? "ring-2 ring-accent bg-accent/5" : ""
+      }`}
+    >
       <div className="group/section flex items-center gap-2 mb-3">
         <button
           onClick={() => handlers.onToggle(node.path)}

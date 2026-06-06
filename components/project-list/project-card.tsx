@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { type DragEvent, useState } from "react";
 import {
   FolderIcon,
   LockIcon,
@@ -9,7 +9,7 @@ import {
   PencilIcon,
   TrashIcon,
 } from "@/components/icons";
-import { type Project, ROOT_KEY } from "./tree";
+import { DRAG_PROJECT_MIME, type Project, ROOT_KEY } from "./tree";
 
 type Props = {
   project: Project;
@@ -27,9 +27,27 @@ export function ProjectCard({
   onMove,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+
+  function handleDragStart(e: DragEvent<HTMLLIElement>) {
+    e.dataTransfer.setData(
+      DRAG_PROJECT_MIME,
+      JSON.stringify({ id: p.id, folder: p.folder || ROOT_KEY }),
+    );
+    e.dataTransfer.effectAllowed = "move";
+    setDragging(true);
+  }
+
   return (
-    <li className="group relative border border-border rounded-xl p-5 bg-panel hover:border-border-strong transition">
-      <Link href={`/projects/${p.id}`} className="block">
+    <li
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={() => setDragging(false)}
+      className={`group relative border border-border rounded-xl p-5 bg-panel hover:border-border-strong transition cursor-grab active:cursor-grabbing ${
+        dragging ? "opacity-40" : ""
+      }`}
+    >
+      <Link href={`/projects/${p.id}`} draggable={false} className="block">
         <div className="flex items-center gap-2 mb-3 text-muted">
           <FolderIcon />
           {p.private && (
