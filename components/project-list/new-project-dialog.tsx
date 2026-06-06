@@ -5,14 +5,19 @@ import { XIcon } from "@/components/icons";
 
 type Props = {
   open: boolean;
+  folders: string[];
   onClose: () => void;
   onCreated: (id: string) => void;
 };
 
-export function NewProjectDialog({ open, onClose, onCreated }: Props) {
+const NEW_SUBJECT = "__new__";
+
+export function NewProjectDialog({ open, folders, onClose, onCreated }: Props) {
   const [name, setName] = useState("");
   const [template, setTemplate] = useState("article");
   const [templates, setTemplates] = useState<string[]>([]);
+  const [folder, setFolder] = useState("");
+  const [newSubject, setNewSubject] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +34,8 @@ export function NewProjectDialog({ open, onClose, onCreated }: Props) {
     if (!open) {
       setName("");
       setTemplate("article");
+      setFolder("");
+      setNewSubject("");
       setIsPrivate(false);
       setPassword("");
       setError(null);
@@ -43,12 +50,23 @@ export function NewProjectDialog({ open, onClose, onCreated }: Props) {
       setError("Password must be at least 4 characters");
       return;
     }
+    if (folder === NEW_SUBJECT && !newSubject.trim()) {
+      setError("Enter a name for the new subject");
+      return;
+    }
+    const targetFolder = folder === NEW_SUBJECT ? newSubject.trim() : folder;
     setSubmitting(true);
     setError(null);
     const r = await fetch("/api/projects", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, template, private: isPrivate, password }),
+      body: JSON.stringify({
+        name,
+        template,
+        private: isPrivate,
+        password,
+        folder: targetFolder,
+      }),
     });
     const j = await r.json();
     if (!r.ok) {
@@ -100,6 +118,29 @@ export function NewProjectDialog({ open, onClose, onCreated }: Props) {
             </option>
           ))}
         </select>
+
+        <label className="block text-sm mt-4 mb-1 text-muted">Subject</label>
+        <select
+          value={folder}
+          onChange={(e) => setFolder(e.target.value)}
+          className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm"
+        >
+          <option value="">No subject</option>
+          {folders.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+          <option value={NEW_SUBJECT}>+ New subject…</option>
+        </select>
+        {folder === NEW_SUBJECT && (
+          <input
+            value={newSubject}
+            onChange={(e) => setNewSubject(e.target.value)}
+            placeholder="New subject name"
+            className="w-full mt-2 bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent"
+          />
+        )}
 
         <label className="flex items-center gap-2 mt-4 text-sm text-foreground cursor-pointer">
           <input

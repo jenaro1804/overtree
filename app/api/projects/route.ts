@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-import { createProject, listProjects } from "@/lib/core/projects";
+import { createProject, listFolders, listProjects } from "@/lib/core/projects";
 import bcrypt from "bcryptjs";
 
 export async function GET() {
-  const projects = await listProjects();
-  return NextResponse.json({ projects });
+  const [projects, folders] = await Promise.all([
+    listProjects(),
+    listFolders(),
+  ]);
+  return NextResponse.json({ projects, folders });
 }
 
 export async function POST(req: Request) {
@@ -13,6 +16,7 @@ export async function POST(req: Request) {
     template?: string;
     private?: boolean;
     password?: string;
+    folder?: string;
   };
   if (!body.name || typeof body.name !== "string") {
     return NextResponse.json({ error: "name required" }, { status: 400 });
@@ -26,6 +30,7 @@ export async function POST(req: Request) {
     template: body.template,
     private: !!body.private,
     passwordHash,
+    folder: typeof body.folder === "string" ? body.folder : undefined,
   });
   return NextResponse.json({ project: meta }, { status: 201 });
 }

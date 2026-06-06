@@ -230,6 +230,44 @@ async function disposeRoom(room: Room) {
   rooms.delete(room.key);
 }
 
+/**
+ * Flush and fully tear down ALL rooms of a project — even ones with active
+ * connections. Releases the chokidar watcher handle (the typical Windows/OneDrive
+ * lock culprit) so the project folder can be renamed/moved/removed. Connected
+ * clients will reconnect to a fresh room (reseeded from disk) on next activity.
+ */
+export async function closeProjectRooms(projectId: string): Promise<void> {
+  const tasks: Promise<void>[] = [];
+  for (const room of [...rooms.values()]) {
+    if (room.projectId !== projectId) continue;
+    if (room.disposeTimer) {
+      clearTimeout(room.disposeTimer);
+      room.disposeTimer = null;
+    }
+    tasks.push(forceCloseRoom(room));
+  }
+  await Promise.all(tasks);
+}
+
+async function forceCloseRoom(room: Room): Promise<void> {
+  if (room.flushTimer) {
+    clearTimeout(room.flushTimer);
+    room.flushTimer = null;
+    await flushToDisk(room);
+  }
+  if (room.stateFlushTimer) {
+    clearTimeout(room.stateFlushTimer);
+    room.stateFlushTimer = null;
+    await flushYjsState(room);
+  }
+  if (room.watcher) {
+    await room.watcher.close().catch(() => {});
+    room.watcher = null;
+  }
+  room.doc.destroy();
+  rooms.delete(room.key);
+}
+
 /** Flush all in-memory Y.Docs belonging to a project to disk, awaiting writes. */
 export async function flushProjectDocs(projectId: string): Promise<void> {
   const tasks: Promise<void>[] = [];

@@ -1,15 +1,29 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
+  buildProjectScan,
   exists,
+  getProjectScan,
+  invalidateProjectIndex,
   isSafeId,
+  moveDirWithRetry,
   newProjectId,
   projectDir,
   projectMetaDir,
   projectMetaFile,
   projectsRoot,
+  resolveFolderPath,
+  slugify,
+  uniqueSlug,
 } from "./storage";
 import { copyTemplate, listTemplates } from "./templates";
+
+// Lazy import to avoid a static cycle (projects → doc-manager → files → projects)
+// and to keep chokidar out of this module's import graph (NFT/Turbopack tracing).
+async function closeProjectRooms(projectId: string): Promise<void> {
+  const { closeProjectRooms: close } = await import("@/lib/yjs/doc-manager");
+  await close(projectId);
+}
 
 export type ProjectMeta = {
   id: string;
@@ -26,16 +40,23 @@ export type ProjectMeta = {
 export type ProjectSummary = Pick<
   ProjectMeta,
   "id" | "name" | "mainFile" | "createdAt" | "updatedAt" | "private"
->;
+> & {
+  /** Subject folder relative to rootDir ("" = root, no subject). */
+  folder: string;
+};
+
+/** Relative subject folder for a project dir (parent relative to root). */
+function folderOf(root: string, dir: string): string {
+  return path.relative(root, path.dirname(dir)).split(path.sep).join("/");
+}
 
 export async function listProjects(): Promise<ProjectSummary[]> {
   const root = await projectsRoot();
-  const entries = await fs.readdir(root, { withFileTypes: true });
+  const scan = await buildProjectScan(); // fresh: reflect OneDrive drags
   const out: ProjectSummary[] = [];
-  for (const e of entries) {
-    if (!e.isDirectory() || !isSafeId(e.name)) continue;
+  for (const [id, dir] of scan.projects) {
     try {
-      const meta = await readMeta(e.name);
+      const meta = await readMeta(id);
       out.push({
         id: meta.id,
         name: meta.name,
@@ -43,6 +64,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
         createdAt: meta.createdAt,
         updatedAt: meta.updatedAt,
         private: meta.private,
+        folder: folderOf(root, dir),
       });
     } catch {
       // skip malformed projects
@@ -50,6 +72,12 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   }
   out.sort((a, b) => b.updatedAt - a.updatedAt);
   return out;
+}
+
+/** All subject folders (including empty ones), relative to root. */
+export async function listFolders(): Promise<string[]> {
+  const scan = await getProjectScan(true);
+  return scan.folders;
 }
 
 export async function readMeta(id: string): Promise<ProjectMeta> {
@@ -65,6 +93,17 @@ export async function writeMeta(meta: ProjectMeta): Promise<void> {
   await fs.writeFile(file, JSON.stringify(meta, null, 2), "utf8");
 }
 
+/** Write project.json directly under a known project dir (id not yet indexed). */
+async function writeMetaToDir(dir: string, meta: ProjectMeta): Promise<void> {
+  const metaDir = path.join(dir, ".overtree");
+  await fs.mkdir(metaDir, { recursive: true });
+  await fs.writeFile(
+    path.join(metaDir, "project.json"),
+    JSON.stringify(meta, null, 2),
+    "utf8",
+  );
+}
+
 export async function touchProject(id: string): Promise<void> {
   const meta = await readMeta(id);
   meta.updatedAt = Date.now();
@@ -76,6 +115,8 @@ export type CreateProjectInput = {
   template?: string;
   private?: boolean;
   passwordHash?: string;
+  /** Subject folder relative to root ("" / undefined = root). */
+  folder?: string;
 };
 
 export async function createProject(
@@ -86,15 +127,21 @@ export async function createProject(
   if (!templates.includes(template)) {
     throw new Error(`unknown template: ${template}`);
   }
+  const name = input.name.trim() || "Untitled";
+  // Place the folder under its subject, with a readable, unique slug. The id
+  // stays a UUID and is decoupled from the folder name.
+  const parentAbs = await resolveFolderPath((input.folder ?? "").trim());
+  await fs.mkdir(parentAbs, { recursive: true });
+  const slug = await uniqueSlug(parentAbs, slugify(name));
+  const dir = path.join(parentAbs, slug);
   const id = newProjectId();
-  const dir = await projectDir(id);
   await fs.mkdir(dir, { recursive: true });
   await copyTemplate(template, dir);
   const mainFile = await detectMainFile(dir);
   const now = Date.now();
   const meta: ProjectMeta = {
     id,
-    name: input.name.trim() || "Untitled",
+    name,
     mainFile,
     engine: "tectonic",
     template,
@@ -103,7 +150,10 @@ export async function createProject(
     private: !!input.private,
     passwordHash: input.passwordHash,
   };
-  await writeMeta(meta);
+  // Write meta directly to the known dir (projectDir(id) can't resolve it yet),
+  // then invalidate so the next lookup discovers it by scan.
+  await writeMetaToDir(dir, meta);
+  invalidateProjectIndex();
   return meta;
 }
 
@@ -123,15 +173,113 @@ async function detectMainFile(dir: string): Promise<string> {
 export async function deleteProject(id: string): Promise<void> {
   if (!isSafeId(id)) throw new Error(`invalid id: ${id}`);
   const dir = await projectDir(id);
+  await closeProjectRooms(id); // release watcher/file locks before rm
   await fs.rm(dir, { recursive: true, force: true });
+  invalidateProjectIndex();
 }
 
-export async function renameProject(id: string, name: string): Promise<ProjectMeta> {
+/**
+ * Rename a project. Keeps the folder name in sync with the readable name by
+ * moving the folder (under the SAME subject) to a fresh slug. The folder move
+ * happens FIRST; only on success do we update meta.name, so name and folder
+ * never drift apart. The id is untouched (cache/Yjs/URLs stay valid).
+ */
+export async function renameProject(
+  id: string,
+  name: string,
+): Promise<ProjectMeta> {
   const meta = await readMeta(id);
-  meta.name = name.trim() || meta.name;
+  const nextName = name.trim() || meta.name;
+  const dir = await projectDir(id);
+  const parentAbs = path.dirname(dir);
+  const currentSlug = path.basename(dir);
+  const desiredSlug = slugify(nextName);
+
+  if (desiredSlug !== currentSlug) {
+    const newSlug = await uniqueSlug(parentAbs, desiredSlug);
+    const newDir = path.join(parentAbs, newSlug);
+    await closeProjectRooms(id); // release locks so the rename can succeed
+    await moveDirWithRetry(dir, newDir);
+    invalidateProjectIndex();
+  }
+
+  meta.name = nextName;
   meta.updatedAt = Date.now();
-  await writeMeta(meta);
+  await writeMeta(meta); // projectDir(id) now resolves to the moved dir
   return meta;
+}
+
+/** Move a project to a different subject folder (same slug; id untouched). */
+export async function moveProject(
+  id: string,
+  folder: string,
+): Promise<ProjectMeta> {
+  const dir = await projectDir(id);
+  const slug = path.basename(dir);
+  const destParent = await resolveFolderPath((folder ?? "").trim());
+  await fs.mkdir(destParent, { recursive: true });
+  const newSlug = await uniqueSlug(destParent, slug);
+  const newDir = path.join(destParent, newSlug);
+  if (path.resolve(newDir) === path.resolve(dir)) {
+    return readMeta(id); // already there
+  }
+  await closeProjectRooms(id);
+  await moveDirWithRetry(dir, newDir);
+  invalidateProjectIndex();
+  await touchProject(id);
+  return readMeta(id);
+}
+
+// --- Subject folder operations ----------------------------------------------
+
+/** Create an (empty) subject folder. */
+export async function createFolder(rel: string): Promise<void> {
+  const abs = await resolveFolderPath(rel.trim());
+  const root = await projectsRoot();
+  if (path.resolve(abs) === path.resolve(root)) {
+    throw new Error("invalid folder name");
+  }
+  await fs.mkdir(abs, { recursive: true });
+  invalidateProjectIndex();
+}
+
+/** Rename/move a subject folder. Closes rooms of any projects inside first. */
+export async function renameFolder(
+  rel: string,
+  newRel: string,
+): Promise<void> {
+  const from = await resolveFolderPath(rel.trim());
+  const to = await resolveFolderPath(newRel.trim());
+  const root = await projectsRoot();
+  if (path.resolve(from) === path.resolve(root)) {
+    throw new Error("cannot rename root");
+  }
+  // Release locks for every project living under this folder.
+  const scan = await getProjectScan(true);
+  for (const [pid, dir] of scan.projects) {
+    const back = path.relative(from, dir);
+    if (!back.startsWith("..") && !path.isAbsolute(back)) {
+      await closeProjectRooms(pid);
+    }
+  }
+  await fs.mkdir(path.dirname(to), { recursive: true });
+  await moveDirWithRetry(from, to);
+  invalidateProjectIndex();
+}
+
+/** Delete a subject folder, only if empty. */
+export async function deleteFolder(rel: string): Promise<void> {
+  const abs = await resolveFolderPath(rel.trim());
+  const root = await projectsRoot();
+  if (path.resolve(abs) === path.resolve(root)) {
+    throw new Error("cannot delete root");
+  }
+  const entries = await fs.readdir(abs).catch(() => [] as string[]);
+  if (entries.length > 0) {
+    throw new Error("folder not empty");
+  }
+  await fs.rmdir(abs);
+  invalidateProjectIndex();
 }
 
 export async function setProjectPassword(
