@@ -1,6 +1,7 @@
 "use client";
 
-import { type DragEvent, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -15,7 +16,6 @@ import {
   type SortMode,
   type TreeNode,
   DEFAULT_SORT,
-  DRAG_PROJECT_MIME,
   SORT_LABELS,
   sortProjects,
 } from "./tree";
@@ -62,43 +62,38 @@ export function SubjectSection({
     layout.projectOrder[node.path] ?? [],
   );
   const total = node.projects.length;
+  const sectionRef = useRef<HTMLElement>(null);
   const [dropOver, setDropOver] = useState(false);
 
-  function isProjectDrag(e: DragEvent): boolean {
-    return e.dataTransfer.types.includes(DRAG_PROJECT_MIME);
-  }
-  function onDragOver(e: DragEvent) {
-    if (!isProjectDrag(e)) return;
-    e.preventDefault(); // allow drop
-    e.stopPropagation(); // innermost subject wins (nested)
-    e.dataTransfer.dropEffect = "move";
-    if (!dropOver) setDropOver(true);
-  }
-  function onDragLeave(e: DragEvent) {
-    e.stopPropagation();
-    setDropOver(false);
-  }
-  function onDrop(e: DragEvent) {
-    if (!isProjectDrag(e)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setDropOver(false);
-    try {
-      const { id, folder } = JSON.parse(
-        e.dataTransfer.getData(DRAG_PROJECT_MIME),
-      ) as { id: string; folder: string };
-      if (folder !== node.path) handlers.onDropProject(id, node.path);
-    } catch {
-      /* malformed payload */
-    }
-  }
+  // Keep latest handlers/path without re-registering the drop target each render.
+  const dropRef = useRef({ path: node.path, onDropProject: handlers.onDropProject });
+  dropRef.current = { path: node.path, onDropProject: handlers.onDropProject };
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source.data.type === "project",
+      getData: () => ({ type: "subject", path: dropRef.current.path }),
+      // Highlight only the innermost subject under the pointer (nested case).
+      onDrag: ({ self, location }) =>
+        setDropOver(location.current.dropTargets[0]?.element === self.element),
+      onDragLeave: () => setDropOver(false),
+      onDrop: ({ source, location, self }) => {
+        setDropOver(false);
+        if (location.current.dropTargets[0]?.element !== self.element) return;
+        const data = source.data as { id?: string; folder?: string };
+        const { path, onDropProject } = dropRef.current;
+        if (data.id && data.folder !== path) onDropProject(data.id, path);
+      },
+    });
+  }, []);
 
   return (
     <section
+      ref={sectionRef}
       style={{ marginLeft: depth * 16 }}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
       className={`rounded-lg transition ${
         dropOver ? "ring-2 ring-accent bg-accent/5" : ""
       }`}

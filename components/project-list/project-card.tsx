@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { type DragEvent, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
   FolderIcon,
   LockIcon,
@@ -9,7 +10,7 @@ import {
   PencilIcon,
   TrashIcon,
 } from "@/components/icons";
-import { DRAG_PROJECT_MIME, type Project, ROOT_KEY } from "./tree";
+import { type Project, ROOT_KEY } from "./tree";
 
 type Props = {
   project: Project;
@@ -26,23 +27,28 @@ export function ProjectCard({
   onRename,
   onMove,
 }: Props) {
+  const ref = useRef<HTMLLIElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
 
-  function handleDragStart(e: DragEvent<HTMLLIElement>) {
-    e.dataTransfer.setData(
-      DRAG_PROJECT_MIME,
-      JSON.stringify({ id: p.id, folder: p.folder || ROOT_KEY }),
-    );
-    e.dataTransfer.effectAllowed = "move";
-    setDragging(true);
-  }
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return draggable({
+      element: el,
+      getInitialData: () => ({
+        type: "project",
+        id: p.id,
+        folder: p.folder || ROOT_KEY,
+      }),
+      onDragStart: () => setDragging(true),
+      onDrop: () => setDragging(false),
+    });
+  }, [p.id, p.folder]);
 
   return (
     <li
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={() => setDragging(false)}
+      ref={ref}
       className={`group relative border border-border rounded-xl p-5 bg-panel hover:border-border-strong transition cursor-grab active:cursor-grabbing ${
         dragging ? "opacity-40" : ""
       }`}
