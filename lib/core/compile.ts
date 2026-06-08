@@ -5,6 +5,7 @@ import { promises as fs } from "node:fs";
 import { projectDir, projectOutputDir } from "./storage";
 import { readMeta, touchProject } from "./projects";
 import { loadSettings } from "./settings";
+import { docManager } from "@/lib/yjs/doc-manager-bridge";
 
 export type CompileEvent =
   | { type: "log"; line: string; stream: "stdout" | "stderr" }
@@ -43,6 +44,12 @@ export async function compile(id: string): Promise<CompileSession> {
   if (existing && existing.status === "running") {
     return existing;
   }
+
+  // The editor's live CRDT is the authority for unsaved edits. Flush every open
+  // Y.Doc of this project to disk BEFORE Tectonic reads the source, otherwise we
+  // compile the stale .tex and re-report errors the user already fixed on screen.
+  // (Goes through the bridge to the single WS-side doc-manager instance.)
+  await docManager().flushProjectDocs(id);
 
   const emitter = new EventEmitter();
   emitter.setMaxListeners(50);
