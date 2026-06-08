@@ -7,6 +7,7 @@ import { readFile, writeFile } from "@/lib/core/files";
 import { projectCacheDir, resolveInProject } from "@/lib/core/storage";
 import { createHash } from "node:crypto";
 import type { WebSocket } from "ws";
+import { registerDocManager } from "./doc-manager-bridge";
 
 const FLUSH_DEBOUNCE_MS = 800;
 const STATE_FLUSH_DEBOUNCE_MS = 300;
@@ -49,14 +50,73 @@ export type Room = {
   disposeTimer: ReturnType<typeof setTimeout> | null;
 };
 
-const rooms = new Map<string, Room>();
+// Pin the rooms map on globalThis so it survives this module being loaded twice
+// in one process: once by the tsx-run custom server (server.ts dynamic-imports
+// lib/yjs/ws-server, which Node resolves straight from source) and once inside
+// the Next webpack bundle (the API routes + MCP import doc-manager). Without the
+// pin those are two distinct module instances → two separate `rooms` maps: the
+// live editor doc lives in the WS-side map while /api/save, MCP applyExternalUpdate
+// and closeProjectRooms run against the other (empty) one. One shared map fixes it.
+const globalForRooms = globalThis as unknown as {
+  __overtreeRooms?: Map<string, Room>;
+};
+const rooms: Map<string, Room> = (globalForRooms.__overtreeRooms ??= new Map<
+  string,
+  Room
+>());
 
 function roomKey(projectId: string, filePath: string): string {
   return `${projectId}::${filePath}`;
 }
 
+/** Normalize CRLF→LF so OneDrive rewriting our own file with different line
+ * endings is recognized as a self-write (same hash) instead of looking like an
+ * external edit. The CRDT always stores LF; disk reads are normalized before
+ * hashing/seeding. */
+function normalizeEol(content: string): string {
+  return content.replace(/\r\n/g, "\n");
+}
+
 function hashContent(content: string): string {
   return createHash("sha1").update(content).digest("hex");
+}
+
+/**
+ * Reconcile a Y.Text toward `next` with a MINIMAL diff (shared common prefix +
+ * suffix; replace only the differing middle). This replaces the old destructive
+ * `delete(0, len) + insert(0, next)` reseed, which minted a brand-new full-document
+ * lineage on every disk sync — when that raced a peer's concurrent insertions at
+ * the same positions, Yjs interleaved the two lineages character-by-character
+ * (the "gibberish" corruption). A minimal diff touches only changed ranges, so
+ * unchanged text keeps its identity and cursors/positions survive.
+ */
+function replaceText(ytext: Y.Text, next: string, origin: unknown): void {
+  const cur = ytext.toString();
+  if (cur === next) return;
+  let start = 0;
+  const minLen = Math.min(cur.length, next.length);
+  while (start < minLen && cur.charCodeAt(start) === next.charCodeAt(start)) {
+    start++;
+  }
+  let endCur = cur.length;
+  let endNext = next.length;
+  while (
+    endCur > start &&
+    endNext > start &&
+    cur.charCodeAt(endCur - 1) === next.charCodeAt(endNext - 1)
+  ) {
+    endCur--;
+    endNext--;
+  }
+  const delCount = endCur - start;
+  const insStr = next.slice(start, endNext);
+  const apply = () => {
+    if (delCount > 0) ytext.delete(start, delCount);
+    if (insStr) ytext.insert(start, insStr);
+  };
+  const doc = ytext.doc;
+  if (doc) doc.transact(apply, origin);
+  else apply();
 }
 
 export async function getRoom(
@@ -70,35 +130,43 @@ export async function getRoom(
       clearTimeout(existing.disposeTimer);
       existing.disposeTimer = null;
     }
+    // Reconnecting to an idle room (e.g. a page reload, or reopening within the
+    // 5-min idle window). While a client was connected, onDiskChange deliberately
+    // skipped external on-disk edits (MCP/Codex/other tools) so they couldn't
+    // interleave with live typing. Now that nobody is connected, pull those edits
+    // from disk so the user sees them on reload — matching the "reload to fetch
+    // external changes" workflow — without ever merging into a live session.
+    if (existing.connections.size === 0) {
+      await reconcileFromDisk(existing);
+    }
     return existing;
   }
 
   const doc = new Y.Doc();
   const ytext = doc.getText("content");
 
-  // Prefer the persisted Y.Doc binary state — it preserves CRDT history so
-  // reconnecting clients merge idempotently across server restarts.
-  // Fall back to seeding from the on-disk text only when no state exists yet.
+  // Load the persisted Y.Doc binary state if present — it preserves CRDT history
+  // so undo survives a server restart when disk and CRDT still agree.
   const stateFile = await yjsStateFile(projectId, filePath);
-  let seededFromState = false;
   try {
     const persisted = await fs.readFile(stateFile);
     Y.applyUpdate(doc, new Uint8Array(persisted), "disk-sync");
-    seededFromState = true;
   } catch {
     /* no persisted state yet */
   }
-  const diskContent = await readFile(projectId, filePath).catch(() => "");
-  if (!seededFromState) {
-    if (diskContent) {
-      doc.transact(() => ytext.insert(0, diskContent), "disk-sync");
-    }
-  } else if (ytext.toString() !== diskContent && diskContent) {
-    // External tool edited the file while server was off — reflect into Y.Text.
-    doc.transact(() => {
-      ytext.delete(0, ytext.length);
-      ytext.insert(0, diskContent);
-    }, "disk-sync");
+
+  // Path A — DISK (.tex) IS THE AUTHORITY. If the persisted CRDT disagrees with
+  // the on-disk text (OneDrive synced a newer .tex from this/another machine, or
+  // an external tool edited it while the server was off), the disk wins. Reconcile
+  // with a minimal diff, NOT a destructive full reseed. This is safe regardless of
+  // history: no client is attached yet (attachConnection happens after getRoom),
+  // so there is no concurrent editor to interleave with → no gibberish. The stale
+  // local .bin never gets to fight the OneDrive-synced source.
+  const diskContent = normalizeEol(
+    await readFile(projectId, filePath).catch(() => ""),
+  );
+  if (normalizeEol(ytext.toString()) !== diskContent) {
+    replaceText(ytext, diskContent, "disk-sync");
   }
 
   const awareness = new Awareness(doc);
@@ -181,21 +249,52 @@ async function flushToDisk(room: Room) {
 }
 
 async function onDiskChange(room: Room) {
-  let content: string;
+  let raw: string;
   try {
-    content = await readFile(room.projectId, room.filePath);
+    raw = await readFile(room.projectId, room.filePath);
   } catch {
     return;
   }
+  const content = normalizeEol(raw);
   const hash = hashContent(content);
-  if (hash === room.lastDiskHash) return; // self-write
+  if (hash === room.lastDiskHash) return; // self-write echo (EOL-normalized)
   if (hash === room.pendingFlushHash) return; // mid-flush echo
+  // Path A: while a client is connected the live CRDT is the authority. Do NOT
+  // merge a background disk rewrite into a doc the user is actively editing —
+  // that concurrent two-lineage merge is exactly what produced the interleaved
+  // gibberish (OneDrive re-touching the .tex acted as an invisible second editor).
+  // The live content flushes back to disk, overwriting the external change; any
+  // genuine external edit is reconciled on the next reopen (getRoom reseeds from
+  // disk). Only when no client is attached is it safe to adopt the new disk text.
+  if (room.connections.size > 0) return;
   room.lastDiskHash = hash;
-  // Replace whole Y.Text with disk content. origin "disk-sync" prevents loop.
-  room.doc.transact(() => {
-    room.ytext.delete(0, room.ytext.length);
-    room.ytext.insert(0, content);
-  }, "disk-sync");
+  replaceText(room.ytext, content, "disk-sync");
+}
+
+/**
+ * Pull external on-disk edits into an idle room. Called from getRoom when a client
+ * reconnects to a room that has no active connections (a reload / reopen). This is
+ * the counterpart to onDiskChange's "skip while connected" guard: external edits
+ * (MCP/Codex/other tools) are not merged into a live session, but ARE adopted the
+ * moment the user reloads. Safe because no client is attached → no concurrent
+ * editor to interleave with.
+ */
+async function reconcileFromDisk(room: Room): Promise<void> {
+  // Never clobber local edits that haven't been flushed to disk yet: a pending
+  // flush means the CRDT is AHEAD of disk, so disk is not the newer version.
+  if (room.flushTimer) return;
+  let raw: string;
+  try {
+    raw = await readFile(room.projectId, room.filePath);
+  } catch {
+    return;
+  }
+  const content = normalizeEol(raw);
+  const hash = hashContent(content);
+  if (hash === room.lastDiskHash) return; // disk unchanged since our last write
+  room.lastDiskHash = hash;
+  if (normalizeEol(room.ytext.toString()) === content) return; // already in sync
+  replaceText(room.ytext, content, "disk-sync");
 }
 
 export function attachConnection(room: Room, ws: WebSocket) {
@@ -291,11 +390,16 @@ export async function applyExternalUpdate(
   const key = roomKey(projectId, filePath);
   const room = rooms.get(key);
   if (!room) return;
-  const hash = hashContent(newContent);
+  const content = normalizeEol(newContent);
+  const hash = hashContent(content);
   if (hash === room.lastDiskHash) return;
   room.lastDiskHash = hash;
-  room.doc.transact(() => {
-    room.ytext.delete(0, room.ytext.length);
-    room.ytext.insert(0, newContent);
-  }, "disk-sync");
+  // Minimal diff (not full delete+insert): an MCP write while the editor is open
+  // is genuinely concurrent with the user's typing, so touch only changed ranges.
+  replaceText(room.ytext, content, "disk-sync");
 }
+
+// This module is the ONLY place yjs is loaded server-side. Publish the public API
+// to the globalThis bridge so the webpack-bundled routes can reach this single
+// instance without importing yjs into their module graph (see doc-manager-bridge).
+registerDocManager({ flushProjectDocs, applyExternalUpdate, closeProjectRooms });
