@@ -22,6 +22,16 @@ async function main() {
   const handle = app.getRequestHandler();
   await app.prepare();
 
+  // Eagerly load the WS server (and through it doc-manager) now — AFTER
+  // app.prepare() so Next's server runtime is initialized, but BEFORE we accept
+  // requests. This makes doc-manager the ONLY place yjs loads in this process and
+  // registers its globalThis bridge so the first Save/compile/MCP API call always
+  // reaches a live doc-manager (not the no-op stub). Loading it at module top
+  // instead crashes: it pulls Next server internals before the runtime exists.
+  const { handleYjsConnection, authorizeYjsRequest } = await import(
+    "./lib/yjs/ws-server"
+  );
+
   const httpServer = createServer((req, res) => {
     handle(req, res).catch((err) => {
       console.error("request error", err);
@@ -53,9 +63,6 @@ async function main() {
       return;
     }
     try {
-      const { handleYjsConnection, authorizeYjsRequest } = await import(
-        "./lib/yjs/ws-server"
-      );
       const auth = await authorizeYjsRequest(req);
       if (!auth.ok) {
         socket.write(`HTTP/1.1 401 Unauthorized\r\n\r\n`);

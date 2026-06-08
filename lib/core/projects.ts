@@ -17,12 +17,14 @@ import {
   uniqueSlug,
 } from "./storage";
 import { copyTemplate, listTemplates } from "./templates";
+import { docManager } from "@/lib/yjs/doc-manager-bridge";
 
-// Lazy import to avoid a static cycle (projects → doc-manager → files → projects)
-// and to keep chokidar out of this module's import graph (NFT/Turbopack tracing).
+// Go through the globalThis bridge instead of importing doc-manager directly: it
+// avoids the static cycle (projects → doc-manager → files → projects), keeps yjs
+// and chokidar out of this module's graph, and reaches the single WS-side
+// doc-manager instance (see doc-manager-bridge).
 async function closeProjectRooms(projectId: string): Promise<void> {
-  const { closeProjectRooms: close } = await import("@/lib/yjs/doc-manager");
-  await close(projectId);
+  await docManager().closeProjectRooms(projectId);
 }
 
 export type ProjectMeta = {

@@ -17,7 +17,7 @@ import {
 } from "@/lib/core/files";
 import { listTemplates } from "@/lib/core/templates";
 import { compileAndWait, getSession } from "@/lib/core/compile";
-import { applyExternalUpdate } from "@/lib/yjs/doc-manager";
+import { docManager } from "@/lib/yjs/doc-manager-bridge";
 import { projectOutputDir, resolveInProject } from "@/lib/core/storage";
 import { promises as fs } from "node:fs";
 
@@ -153,7 +153,7 @@ export async function createMcpServer(): Promise<McpServer> {
     async ({ project_id, path: rel, content }) => {
       await writeFile(project_id, rel, content);
       try {
-        await applyExternalUpdate(project_id, rel, content);
+        await docManager().applyExternalUpdate(project_id, rel, content);
       } catch {
         /* not in the same process — chokidar will reflect the change */
       }
@@ -178,7 +178,7 @@ export async function createMcpServer(): Promise<McpServer> {
         await editFile(project_id, rel, old_string, new_string);
         try {
           const next = await readFile(project_id, rel);
-          await applyExternalUpdate(project_id, rel, next);
+          await docManager().applyExternalUpdate(project_id, rel, next);
         } catch {}
         return textResult(`Edited ${rel}`);
       } catch (err) {
