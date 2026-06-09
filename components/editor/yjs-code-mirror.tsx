@@ -21,9 +21,12 @@ import {
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { StreamLanguage } from "@codemirror/language";
 import {
+  type Completion,
   type CompletionContext,
   type CompletionResult,
+  type CompletionSource,
   snippetCompletion,
+  startCompletion,
 } from "@codemirror/autocomplete";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -86,6 +89,25 @@ const errorLineField = StateField.define<DecorationSet>({
 // --- LaTeX autocompletion ------------------------------------------------
 // Attached to the stex language data so it composes with the autocompletion()
 // basicSetup already ships, instead of registering a second instance.
+
+// Commands whose braces hold a project symbol (cite/ref/file): insert `cmd{}`,
+// drop the cursor inside, and immediately open the symbol dropdown.
+function symbolCommand(cmd: string, detail: string): Completion {
+  return {
+    label: `\\${cmd}{}`,
+    type: "function",
+    detail,
+    apply: (view, _c, from, to) => {
+      const insert = `\\${cmd}{}`;
+      view.dispatch({
+        changes: { from, to, insert },
+        selection: { anchor: from + insert.length - 1 },
+      });
+      startCompletion(view);
+    },
+  };
+}
+
 const commandCompletions = [
   snippetCompletion("\\section{${title}}", { label: "\\section{}", type: "keyword", detail: "Section" }),
   snippetCompletion("\\subsection{${title}}", { label: "\\subsection{}", type: "keyword", detail: "Subsection" }),
@@ -95,11 +117,13 @@ const commandCompletions = [
   snippetCompletion("\\textit{${text}}", { label: "\\textit{}", type: "keyword", detail: "Italic" }),
   snippetCompletion("\\underline{${text}}", { label: "\\underline{}", type: "keyword", detail: "Underline" }),
   snippetCompletion("\\emph{${text}}", { label: "\\emph{}", type: "keyword", detail: "Emphasis" }),
-  snippetCompletion("\\includegraphics[${options}]{${file}}", { label: "\\includegraphics[]{}", type: "function", detail: "Image" }),
+  symbolCommand("includegraphics", "Image"),
   snippetCompletion("\\caption{${text}}", { label: "\\caption{}", type: "function", detail: "Caption" }),
   snippetCompletion("\\label{${key}}", { label: "\\label{}", type: "function", detail: "Label" }),
-  snippetCompletion("\\ref{${key}}", { label: "\\ref{}", type: "function", detail: "Reference" }),
-  snippetCompletion("\\cite{${key}}", { label: "\\cite{}", type: "function", detail: "Citation" }),
+  symbolCommand("ref", "Reference"),
+  symbolCommand("eqref", "Equation reference"),
+  symbolCommand("cite", "Citation"),
+  symbolCommand("input", "Input file"),
   snippetCompletion("\\url{${url}}", { label: "\\url{}", type: "function", detail: "URL" }),
   snippetCompletion("\\begin{${env}}\n\t${}\n\\end{${env}}", { label: "\\begin{}", type: "keyword", detail: "Environment" }),
   snippetCompletion("\\end{${env}}", { label: "\\end{}", type: "keyword", detail: "End environment" }),
@@ -114,30 +138,158 @@ const environmentNames = [
   "enumerate",
 ];
 
-function latexCompletions(context: CompletionContext): CompletionResult | null {
-  // Inside \begin{…} or \end{…}: complete the environment name.
-  const env = context.matchBefore(/\\(?:begin|end)\{[a-zA-Z*]*/);
-  if (env) {
-    const from = env.from + env.text.indexOf("{") + 1;
-    return {
-      from,
-      options: environmentNames.map((name) => ({ label: name, type: "type" })),
-      validFor: /^[a-zA-Z*]*$/,
-    };
-  }
+// --- Project-aware symbols (\cite, \ref, \input, \includegraphics) -------
+// Fetched from /api/projects/<id>/symbols and cached briefly so the dropdown is
+// near-fresh without re-fetching on every keystroke.
+type ProjectSymbols = {
+  citations: { key: string; title?: string }[];
+  labels: { key: string; file?: string }[];
+  texFiles: string[];
+  imageFiles: string[];
+};
+const EMPTY_SYMBOLS: ProjectSymbols = {
+  citations: [],
+  labels: [],
+  texFiles: [],
+  imageFiles: [],
+};
+const SYMBOLS_TTL = 10_000;
+const symbolsCache = new Map<string, { data: ProjectSymbols; ts: number }>();
 
-  // A command being typed: \se… → suggest command snippets.
-  const cmd = context.matchBefore(/\\[a-zA-Z]*/);
-  if (cmd) {
-    if (cmd.from === cmd.to && !context.explicit) return null;
-    return {
-      from: cmd.from,
-      options: commandCompletions,
-      validFor: /^\\[a-zA-Z]*$/,
-    };
+async function fetchProjectSymbols(projectId: string): Promise<ProjectSymbols> {
+  const cached = symbolsCache.get(projectId);
+  if (cached && Date.now() - cached.ts < SYMBOLS_TTL) return cached.data;
+  try {
+    const r = await fetch(`/api/projects/${projectId}/symbols`);
+    if (!r.ok) return cached?.data ?? EMPTY_SYMBOLS;
+    const data = (await r.json()) as ProjectSymbols;
+    symbolsCache.set(projectId, { data, ts: Date.now() });
+    return data;
+  } catch {
+    return cached?.data ?? EMPTY_SYMBOLS;
   }
+}
 
-  return null;
+// Cite commands (anything containing "cite"), with optional [..] options.
+const CITE_RE = /\\[a-zA-Z]*cite[a-zA-Z]*\*?\s*(?:\[[^\]]*\]\s*)*\{[^}]*$/;
+// Cross-reference commands — explicit list so \href (contains "ref") is excluded.
+const REF_RE =
+  /\\(?:ref|eqref|pageref|autoref|vref|cref|Cref|cpageref|Cpageref|nameref|labelcref)\*?\s*\{[^}]*$/;
+const GRAPHICS_RE = /\\includegraphics\s*(?:\[[^\]]*\]\s*)?\{[^}]*$/;
+const INPUT_RE = /\\(?:input|include|subfile)\s*\{[^}]*$/;
+
+// When the user types the opening "{" of a symbol command, open the dropdown
+// right away (CodeMirror only auto-opens on word chars, not "{").
+const SYMBOL_OPEN_RE =
+  /\\(?:[a-zA-Z]*cite[a-zA-Z]*|ref|eqref|pageref|autoref|vref|cref|Cref|cpageref|Cpageref|nameref|labelcref|includegraphics|input|include|subfile)\*?\s*(?:\[[^\]]*\]\s*)*\{$/;
+
+const openSymbolCompletion = EditorView.updateListener.of((update) => {
+  if (!update.docChanged) return;
+  let trigger = false;
+  update.changes.iterChanges((_fromA, _toA, _fromB, toB, inserted) => {
+    if (trigger || inserted.length === 0) return;
+    const text = inserted.toString();
+    if (text[text.length - 1] !== "{") return;
+    const before = update.state.sliceDoc(Math.max(0, toB - 160), toB);
+    if (SYMBOL_OPEN_RE.test(before)) trigger = true;
+  });
+  // Defer: can't dispatch (startCompletion does) during an update.
+  if (trigger) queueMicrotask(() => startCompletion(update.view));
+});
+
+function makeLatexCompletions(projectId: string): CompletionSource {
+  return async (
+    context: CompletionContext,
+  ): Promise<CompletionResult | null> => {
+    // \cite{…} → citation keys from the .bib files.
+    if (context.matchBefore(CITE_RE)) {
+      const tok = context.matchBefore(/[^{},\s]*$/);
+      const { citations } = await fetchProjectSymbols(projectId);
+      if (!citations.length) return null;
+      return {
+        from: tok ? tok.from : context.pos,
+        options: citations.map(
+          (c): Completion => ({
+            label: c.key,
+            type: "variable",
+            detail: c.title,
+          }),
+        ),
+        validFor: /^[^{},\s]*$/,
+      };
+    }
+
+    // \ref{…} and friends → \label keys from the .tex files.
+    if (context.matchBefore(REF_RE)) {
+      const tok = context.matchBefore(/[^{},\s]*$/);
+      const { labels } = await fetchProjectSymbols(projectId);
+      if (!labels.length) return null;
+      return {
+        from: tok ? tok.from : context.pos,
+        options: labels.map(
+          (l): Completion => ({
+            label: l.key,
+            type: "variable",
+            detail: l.file,
+          }),
+        ),
+        validFor: /^[^{},\s]*$/,
+      };
+    }
+
+    // \includegraphics{…} → image paths.
+    if (context.matchBefore(GRAPHICS_RE)) {
+      const tok = context.matchBefore(/[^{}]*$/);
+      const { imageFiles } = await fetchProjectSymbols(projectId);
+      if (!imageFiles.length) return null;
+      return {
+        from: tok ? tok.from : context.pos,
+        options: imageFiles.map((p): Completion => ({ label: p, type: "file" })),
+        validFor: /^[^{}]*$/,
+      };
+    }
+
+    // \input{…} / \include{…} → other .tex (label without the .tex extension).
+    if (context.matchBefore(INPUT_RE)) {
+      const tok = context.matchBefore(/[^{}]*$/);
+      const { texFiles } = await fetchProjectSymbols(projectId);
+      if (!texFiles.length) return null;
+      return {
+        from: tok ? tok.from : context.pos,
+        options: texFiles.map(
+          (p): Completion => ({
+            label: p.replace(/\.tex$/i, ""),
+            type: "file",
+          }),
+        ),
+        validFor: /^[^{}]*$/,
+      };
+    }
+
+    // Inside \begin{…} or \end{…}: complete the environment name.
+    const env = context.matchBefore(/\\(?:begin|end)\{[a-zA-Z*]*/);
+    if (env) {
+      const from = env.from + env.text.indexOf("{") + 1;
+      return {
+        from,
+        options: environmentNames.map((name) => ({ label: name, type: "type" })),
+        validFor: /^[a-zA-Z*]*$/,
+      };
+    }
+
+    // A command being typed: \se… → suggest command snippets.
+    const cmd = context.matchBefore(/\\[a-zA-Z]*/);
+    if (cmd) {
+      if (cmd.from === cmd.to && !context.explicit) return null;
+      return {
+        from: cmd.from,
+        options: commandCompletions,
+        validFor: /^\\[a-zA-Z]*$/,
+      };
+    }
+
+    return null;
+  };
 }
 
 const stexLang = StreamLanguage.define(stex);
@@ -258,7 +410,13 @@ export function YjsCodeMirror({
             basicSetup,
             themeComp.current.of(themeExtension(themeRef.current)),
             ...(isTex
-              ? [stexLang, stexLang.data.of({ autocomplete: latexCompletions })]
+              ? [
+                  stexLang,
+                  stexLang.data.of({
+                    autocomplete: makeLatexCompletions(projectId),
+                  }),
+                  openSymbolCompletion,
+                ]
               : []),
             errorLineField,
             yCollab(ytext, provider.awareness, { undoManager: undoMgr }),
