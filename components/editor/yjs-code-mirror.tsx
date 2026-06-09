@@ -21,6 +21,7 @@ import {
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { StreamLanguage } from "@codemirror/language";
 import {
+  acceptCompletion,
   type Completion,
   type CompletionContext,
   type CompletionResult,
@@ -424,6 +425,13 @@ export function YjsCodeMirror({
             // otherwise capture the keys before our bindings run.
             Prec.highest(
               keymap.of([
+                {
+                  // Accept the open completion with Tab; when none is open,
+                  // acceptCompletion returns false and Tab falls through to
+                  // indentWithTab below. (Enter still accepts too.)
+                  key: "Tab",
+                  run: acceptCompletion,
+                },
                 {
                   key: "Mod-s",
                   preventDefault: true,
