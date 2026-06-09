@@ -60,6 +60,7 @@ export function EditorShell({
   const { theme } = useTheme();
 
   const editorRef = useRef<CodeMirrorHandle | null>(null);
+  const errorLinesRef = useRef<number[]>([]);
   const compileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sseRef = useRef<EventSource | null>(null);
@@ -80,6 +81,8 @@ export function EditorShell({
   const subscribeCompile = useCallback(() => {
     if (sseRef.current) sseRef.current.close();
     setLogEntries([]);
+    errorLinesRef.current = [];
+    editorRef.current?.clearErrorMarks();
     setCompileStatus("running");
     const es = new EventSource(`/api/compile/${project.id}`);
     sseRef.current = es;
@@ -95,8 +98,12 @@ export function EditorShell({
           ...prev,
           { kind: "error", line: data.line, text: data.message },
         ]);
+        if (typeof data.line === "number" && data.line > 0) {
+          errorLinesRef.current.push(data.line);
+        }
       } else if (data.type === "done") {
         setCompileStatus(data.ok ? "ok" : "failed");
+        editorRef.current?.markErrorLines(errorLinesRef.current);
         if (data.pdfPath) {
           setPdfAvailable(true);
           setPdfBust(Date.now());
