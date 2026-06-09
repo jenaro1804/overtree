@@ -4,19 +4,143 @@ import { useEffect, useRef } from "react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { yCollab } from "y-codemirror.next";
-import { Compartment, EditorState, Prec } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Prec,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  keymap,
+} from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
-import { EditorSelection } from "@codemirror/state";
 import { StreamLanguage } from "@codemirror/language";
+import {
+  type CompletionContext,
+  type CompletionResult,
+  snippetCompletion,
+} from "@codemirror/autocomplete";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { basicSetup } from "codemirror";
 import { encodeRoom } from "@/lib/identity";
 import type { Theme } from "@/lib/theme";
 
+// In dark, oneDark paints the selected autocomplete option *darker* than the
+// rest, so it reads as unselected. Flip it: dim the unselected options and make
+// the active one the brightest (light foreground + a subtle surface fill). Lives
+// next to oneDark so it only applies in dark — light already highlights in blue.
+const darkAutocompleteFix = EditorView.theme({
+  ".cm-tooltip-autocomplete > ul > li": {
+    color: "var(--muted)",
+  },
+  ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+    backgroundColor: "var(--surface)",
+    color: "var(--foreground)",
+  },
+});
+
 // Dark = oneDark; light = no extra theme (basicSetup ships a light highlight).
-const themeExtension = (theme: Theme) => (theme === "dark" ? oneDark : []);
+const themeExtension = (theme: Theme) =>
+  theme === "dark" ? [oneDark, darkAutocompleteFix] : [];
+
+// --- Compile-error line highlighting -------------------------------------
+// The editor-shell pushes the lines Tectonic flagged (and clears them when a new
+// compile starts) through these effects; the field keeps the line decorations
+// in sync as the document is edited.
+const setErrorLines = StateEffect.define<number[]>();
+const clearErrorLines = StateEffect.define<null>();
+const errorLineDeco = Decoration.line({ class: "cm-errorLine" });
+
+const errorLineField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(clearErrorLines)) {
+        deco = Decoration.none;
+      } else if (e.is(setErrorLines)) {
+        const doc = tr.state.doc;
+        const ranges = [];
+        const seen = new Set<number>();
+        for (const ln of e.value) {
+          if (ln < 1 || ln > doc.lines || seen.has(ln)) continue;
+          seen.add(ln);
+          ranges.push(errorLineDeco.range(doc.line(ln).from));
+        }
+        deco = Decoration.set(ranges, true);
+      }
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+// --- LaTeX autocompletion ------------------------------------------------
+// Attached to the stex language data so it composes with the autocompletion()
+// basicSetup already ships, instead of registering a second instance.
+const commandCompletions = [
+  snippetCompletion("\\section{${title}}", { label: "\\section{}", type: "keyword", detail: "Section" }),
+  snippetCompletion("\\subsection{${title}}", { label: "\\subsection{}", type: "keyword", detail: "Subsection" }),
+  snippetCompletion("\\subsubsection{${title}}", { label: "\\subsubsection{}", type: "keyword", detail: "Subsubsection" }),
+  snippetCompletion("\\paragraph{${title}}", { label: "\\paragraph{}", type: "keyword", detail: "Paragraph" }),
+  snippetCompletion("\\textbf{${text}}", { label: "\\textbf{}", type: "keyword", detail: "Bold" }),
+  snippetCompletion("\\textit{${text}}", { label: "\\textit{}", type: "keyword", detail: "Italic" }),
+  snippetCompletion("\\underline{${text}}", { label: "\\underline{}", type: "keyword", detail: "Underline" }),
+  snippetCompletion("\\emph{${text}}", { label: "\\emph{}", type: "keyword", detail: "Emphasis" }),
+  snippetCompletion("\\includegraphics[${options}]{${file}}", { label: "\\includegraphics[]{}", type: "function", detail: "Image" }),
+  snippetCompletion("\\caption{${text}}", { label: "\\caption{}", type: "function", detail: "Caption" }),
+  snippetCompletion("\\label{${key}}", { label: "\\label{}", type: "function", detail: "Label" }),
+  snippetCompletion("\\ref{${key}}", { label: "\\ref{}", type: "function", detail: "Reference" }),
+  snippetCompletion("\\cite{${key}}", { label: "\\cite{}", type: "function", detail: "Citation" }),
+  snippetCompletion("\\url{${url}}", { label: "\\url{}", type: "function", detail: "URL" }),
+  snippetCompletion("\\begin{${env}}\n\t${}\n\\end{${env}}", { label: "\\begin{}", type: "keyword", detail: "Environment" }),
+  snippetCompletion("\\end{${env}}", { label: "\\end{}", type: "keyword", detail: "End environment" }),
+];
+
+const environmentNames = [
+  "figure",
+  "table",
+  "equation",
+  "align",
+  "itemize",
+  "enumerate",
+];
+
+function latexCompletions(context: CompletionContext): CompletionResult | null {
+  // Inside \begin{…} or \end{…}: complete the environment name.
+  const env = context.matchBefore(/\\(?:begin|end)\{[a-zA-Z*]*/);
+  if (env) {
+    const from = env.from + env.text.indexOf("{") + 1;
+    return {
+      from,
+      options: environmentNames.map((name) => ({ label: name, type: "type" })),
+      validFor: /^[a-zA-Z*]*$/,
+    };
+  }
+
+  // A command being typed: \se… → suggest command snippets.
+  const cmd = context.matchBefore(/\\[a-zA-Z]*/);
+  if (cmd) {
+    if (cmd.from === cmd.to && !context.explicit) return null;
+    return {
+      from: cmd.from,
+      options: commandCompletions,
+      validFor: /^\\[a-zA-Z]*$/,
+    };
+  }
+
+  return null;
+}
+
+const stexLang = StreamLanguage.define(stex);
 
 function wrapSelection(view: EditorView, before: string, after: string) {
   view.dispatch(
@@ -37,6 +161,8 @@ function wrapSelection(view: EditorView, before: string, after: string) {
 
 export type CodeMirrorHandle = {
   gotoLine: (line: number) => void;
+  markErrorLines: (lines: number[]) => void;
+  clearErrorMarks: () => void;
 };
 
 export type Peer = { clientId: number; name: string; color: string };
@@ -131,7 +257,10 @@ export function YjsCodeMirror({
           extensions: [
             basicSetup,
             themeComp.current.of(themeExtension(themeRef.current)),
-            ...(isTex ? [StreamLanguage.define(stex)] : []),
+            ...(isTex
+              ? [stexLang, stexLang.data.of({ autocomplete: latexCompletions })]
+              : []),
+            errorLineField,
             yCollab(ytext, provider.awareness, { undoManager: undoMgr }),
             // Prec.highest so these win over basicSetup's keymaps, which
             // otherwise capture the keys before our bindings run.
@@ -184,6 +313,12 @@ export function YjsCodeMirror({
             EditorView.theme({
               "&": { height: "100%" },
               ".cm-scroller": { overflow: "auto" },
+              // Red highlight + left bar (inset shadow avoids layout shift) for
+              // lines Tectonic flagged. State colors stay literal.
+              ".cm-errorLine": {
+                backgroundColor: "rgba(248, 113, 113, 0.25)",
+                boxShadow: "inset 3px 0 0 0 rgb(248, 113, 113)",
+              },
             }),
           ],
         }),
@@ -200,6 +335,12 @@ export function YjsCodeMirror({
             effects: EditorView.scrollIntoView(li.from, { y: "center" }),
           });
           view.focus();
+        },
+        markErrorLines(lines: number[]) {
+          view.dispatch({ effects: setErrorLines.of(lines) });
+        },
+        clearErrorMarks() {
+          view.dispatch({ effects: clearErrorLines.of(null) });
         },
       });
 
